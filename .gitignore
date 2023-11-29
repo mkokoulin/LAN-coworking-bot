@@ -1,0 +1,35 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Certificates
+*.pem
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Binaries
+cmd/main
+
+# Dependency directories (remove the comment below to include it)
+vendor/
+
+# IDEs directories
+.idea
+.vscode
+.DS_Store
+
+env.json
+
+google-config.json
+.env
+
+__debug_bin
+ .DS_Store
+lan-coworking-bot-1d1088376448.json
