@@ -89,6 +89,8 @@ func main() {
 						"/events – информация о мероприятиях\n" +
 						"/about – информация о площадке и схема\n"
 					case WIFI:
+						isAwaitingConfirmation = false
+						
 						msg.Text = "Выберите ниже варианты сети: гостевой / коворкинг"
 						msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 							tgbotapi.NewKeyboardButtonRow(
@@ -155,8 +157,6 @@ func main() {
 			}
 
 			if currentCommand == WIFI {
-				isAwaitingConfirmation = false
-				
 				if !isAwaitingConfirmation {
 					if update.Message.Text == "гостевой" {
 						msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть Lan_Guest пароль %s", cfg.GuestWifiPassword))
