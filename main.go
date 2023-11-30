@@ -178,7 +178,6 @@ func main() {
 
 						if coworker.Telegram != "" {
 							msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
-							bot.Send(msg)
 
 							currentCommand = ""
 
@@ -186,6 +185,8 @@ func main() {
 								RemoveKeyboard: true,
 								Selective: false,
 							}
+							
+							bot.Send(msg)
 							continue
 						}
 						
