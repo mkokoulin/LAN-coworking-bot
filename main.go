@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
-	"github.com/mkokoulin/LAN-coworking-bot/internal/helpers/encoder"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/services"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -200,13 +199,7 @@ func main() {
 					}
 
 					for _, s := range unusedSecrets {
-						decoded, err := encoder.Decode(s)
-						if err != nil {
-							msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка генерации кода. Обратитесь к администратору")
-							bot.Send(msg)
-						}
-
-						if update.Message.Text == decoded {
+						if update.Message.Text == s {
 							msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
 							currentCommand = ""
 							msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
@@ -227,7 +220,7 @@ func main() {
 							}
 							isAwaitingConfirmation = false
 
-							continue
+							break
 						}
 					}
 
