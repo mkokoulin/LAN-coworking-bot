@@ -5,12 +5,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/helpers/encoder"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/services"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
+
+const (
+	START = "start"
+	WIFI = "wifi"
+	MEETINGROOM = "meetingroom"
+	PRINTOUT = "printout"
+	EVENTS = "events"
+	ABOUT = "about"
 )
 
 func main() {
@@ -49,6 +59,14 @@ func main() {
 	currentCommand := ""
 	isAwaitingConfirmation := false
 
+	go func() {
+        _ = http.ListenAndServe(":8080", http.HandlerFunc(
+            func(w http.ResponseWriter, r *http.Request) {
+                _, _ = w.Write([]byte("ok"))
+            },
+        ))
+    }()
+
 	for update := range updates {
 		if update.Message != nil {
 			if update.Message.IsCommand() {
@@ -56,7 +74,7 @@ func main() {
 				currentCommand = update.Message.Command()
 
 				switch currentCommand {
-					case "start":
+					case START:
 						msg.Text =
 						"В пространстве Letters and Numbers размещаются: коворкинг, кофейня и площадка для мероприятий.\n" +
 						"Обязательно ознакомьтесь с инфорамцией из раздела /about там вы найдете информацию о наших локациях и правила поведения в них.\n\n" +
@@ -68,7 +86,7 @@ func main() {
 						"/printout – отправить документы на печать\n" +
 						"/events – информация о мероприятиях\n" +
 						"/about – информация о площадке и схема\n"
-					case "wifi":
+					case WIFI:
 						msg.Text = "Выберите ниже варианты сети: гостевой / коворкинг"
 						msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 							tgbotapi.NewKeyboardButtonRow(
@@ -76,14 +94,14 @@ func main() {
 								tgbotapi.NewKeyboardButton("коворкинг"),
 							),
 						)
-					case "meetingroom":
+					case MEETINGROOM:
 						msg.Text = "Напишите дату и интервал времени, на который вы хотите забронировать комнату для переговоров в формате yyyy-mm-dd hh:mm - hh:mm"
-					case "printout":
+					case PRINTOUT:
 						msg.Text = "Отправьте документы для распечатки в аккаунт @lan_yerevan (администратору) и уточните у него стоимость услуги"
-					case "events":
+					case EVENTS:
 						msg.ParseMode = "html"
 						msg.Text = "У нас проходит большое количество разнообразных мероприятий, анонсы событий мы публикуем в наших социальных сетях: <a href='https://www.instagram.com/lan_yerevan/'>Instagram</a> и <a href='https://t.me/lan_yerevan'>Telegram</a>. Подписывайтесь, чтобы быть в курсе классных событий 🎉. Актуальный список мероприятий и бронирование ведется через <a href='https://taplink.cc/lan_yerevan'>taplink</a>"
-					case "about":
+					case ABOUT:
 						msg.ParseMode = "html"
 						msg.Text = 
 						"🗺️ Направляем схему площадки, чтобы вам было легче сориентироваться. В пространстве Letters and Numbers размещаются: коворкинг, кофейня и площадка для мероприятий. Здесь отмечены наши локации и правила поведения в них.\n\n" +
@@ -100,7 +118,7 @@ func main() {
 							panic(err)
 						}
 						photoFileBytes := tgbotapi.FileBytes{
-							Name:  "picture",
+							Name:  "scheme",
 							Bytes: photoBytes,
 						}
 
@@ -120,7 +138,7 @@ func main() {
 				continue
 			}
 
-			if currentCommand == "meetingroom" {
+			if currentCommand == MEETINGROOM {
 				if update.Message.Text == "" {
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 					msg.Text = "Сообщение не может быть пустым"
@@ -129,15 +147,15 @@ func main() {
 					continue
 				}
 
-				msgTo := tgbotapi.NewMessage(5701365900, fmt.Sprintf("Пользователь @%s просит забронировать переговорку - %s", update.Message.Chat.UserName, update.Message.Text))
+				msgTo := tgbotapi.NewMessage(cfg.AdminChatId, fmt.Sprintf("Пользователь @%s просит забронировать переговорку - %s", update.Message.Chat.UserName, update.Message.Text))
 
 				bot.Send(msgTo)
 			}
 
-			if currentCommand == "wifi" {
+			if currentCommand == WIFI {
 				if !isAwaitingConfirmation {
 					if update.Message.Text == "гостевой" {
-						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "сеть Lan_Guest пароль lan123456")
+						msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть Lan_Guest пароль %s", cfg.GuestWifiPassword))
 						bot.Send(msg)
 					}
 	
@@ -149,7 +167,7 @@ func main() {
 						}
 
 						if coworker.Telegram != "" {
-							msg := tgbotapi.NewMessage(update.Message.Chat.ID, "сеть LAN пароль @lan2023")
+							msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
 							bot.Send(msg)
 							continue
 						}
@@ -172,7 +190,7 @@ func main() {
 							}
 
 							if update.Message.Text == decoded {
-								msg := tgbotapi.NewMessage(update.Message.Chat.ID, "сеть LAN пароль @lan2023")
+								msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
 								bot.Send(msg)
 
 								newCoworker := services.Coworker{

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/services"
 )
@@ -15,6 +16,9 @@ type Config struct {
 	CoworkersSpreadsheetId string `env:"COWORKERS_SPREADSHEET_ID" json:"COWORKERS_SPREADSHEET_ID"`
 	CoworkersReadRange string `env:"COWORKERS_READ_RANGE" json:"COWORKERS_READ_RANGE"`
 	GoogleCloudConfig services.GoogleCloudConfig `env:"GOOGLE_CLOUD_CONFIG" json:"GOOGLE_CLOUD_CONFIG"`
+	GuestWifiPassword string `env:"GUEST_WIFI_PASSWORD" json:"GUEST_WIFI_PASSWORD"`
+	CoworkingWifiPassword string `env:"COWORKING_WIFI_PASSWORD" json:"COWORKING_WIFI_PASSWORD"`
+	AdminChatId int64 `env:"ADMIN_CHAT_ID" json:"ADMIN_CHAT_ID"`
 }
 
 func New() (*Config, error) {
@@ -55,6 +59,32 @@ func New() (*Config, error) {
 	}
 	log.Default().Printf("[LAN-TG-BOT] GOOGLE_CLOUD_CONFIG: %v", cfg.GoogleCloudConfig)
 	cfg.GoogleCloudConfig = googleCloudConfig;
+
+	cfg.GuestWifiPassword = os.Getenv("GUEST_WIFI_PASSWORD")
+	if cfg.GuestWifiPassword == "" {
+		return nil, fmt.Errorf("environment variable %v is not set or empty", "GUEST_WIFI_PASSWORD")
+	}
+	log.Default().Printf("[LAN-COWORKING-BOT] GUEST_WIFI_PASSWORD: %v", cfg.GuestWifiPassword)
+
+	cfg.CoworkingWifiPassword = os.Getenv("COWORKING_WIFI_PASSWORD")
+	if cfg.CoworkingWifiPassword == "" {
+		return nil, fmt.Errorf("environment variable %v is not set or empty", "COWORKING_WIFI_PASSWORD")
+	}
+	log.Default().Printf("[LAN-COWORKING-BOT] COWORKING_WIFI_PASSWORD: %v", cfg.CoworkingWifiPassword)
+
+	adminChatIdString := os.Getenv("ADMIN_CHAT_ID")
+	if adminChatIdString == "" {
+		return nil, fmt.Errorf("environment variable %v is not set or empty", "ADMIN_CHAT_ID")
+	}
+
+	i, err := strconv.Atoi(adminChatIdString)
+    if err != nil {
+        return nil, fmt.Errorf("error parsing int: %v", err)
+    }
+
+	cfg.AdminChatId = int64(i)
+
+	log.Default().Printf("[LAN-COWORKING-BOT] ADMIN_CHAT_ID: %v", cfg.AdminChatId)
 
 	return &cfg, nil
 }
