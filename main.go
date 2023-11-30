@@ -76,8 +76,11 @@ func main() {
 				switch currentCommand {
 					case START:
 						msg.Text =
-						"В пространстве Letters and Numbers размещаются: коворкинг, кофейня и площадка для мероприятий.\n" +
-						"Обязательно ознакомьтесь с инфорамцией из раздела /about там вы найдете информацию о наших локациях и правила поведения в них.\n\n" +
+						"В пространстве Letters and Numbers размещаются:\n" +
+						"💻 коворкинг,\n" +
+						"☕️ кофейня и ,\n" +
+						"✨ площадка для мероприятий.\n\n" +
+						"Обязательно ознакомьтесь с разделом /about — там вы найдете информацию о наших локациях и правилах поведения в них.\n\n" +
 						"Выберите команду про продолжения диалога:\n\n" +
 						"команды:\n" +
 						"/start – перезапуск\n" +
@@ -156,6 +159,12 @@ func main() {
 				if !isAwaitingConfirmation {
 					if update.Message.Text == "гостевой" {
 						msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть Lan_Guest пароль %s", cfg.GuestWifiPassword))
+						currentCommand = ""
+						msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
+							RemoveKeyboard: true,
+							Selective: false,
+						}
+
 						bot.Send(msg)
 					}
 	
@@ -169,44 +178,60 @@ func main() {
 						if coworker.Telegram != "" {
 							msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
 							bot.Send(msg)
+
+							currentCommand = ""
+
+							msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
+								RemoveKeyboard: true,
+								Selective: false,
+							}
 							continue
 						}
 						
 						isAwaitingConfirmation = true
+
 						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите номер, полученный от администратора")
 						bot.Send(msg)
 					}
 				} else {
-						unusedSecrets, err := coworkersSheets.GetUnusedSecrets(ctx)
+					unusedSecrets, err := coworkersSheets.GetUnusedSecrets(ctx)
+					if err != nil {
+						log.Fatalf("fatal error %v", err)
+					}
+
+					for _, s := range unusedSecrets {
+						decoded, err := encoder.Decode(s)
 						if err != nil {
-							log.Fatalf("fatal error %v", err)
+							msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка генерации кода. Обратитесь к администратору")
+							bot.Send(msg)
 						}
 
-						for _, s := range unusedSecrets {
-							decoded, err := encoder.Decode(s)
+						if update.Message.Text == decoded {
+							msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
+							currentCommand = ""
+							msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
+								RemoveKeyboard: true,
+								Selective: false,
+							}
+
+							bot.Send(msg)
+
+							newCoworker := services.Coworker{
+								Secret: s,
+								Telegram: fmt.Sprintf("@%s", update.Message.Chat.UserName),
+							}
+							err := coworkersSheets.UpdateCoworker(ctx, newCoworker)
 							if err != nil {
 								msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка генерации кода. Обратитесь к администратору")
 								bot.Send(msg)
 							}
+							isAwaitingConfirmation = false
 
-							if update.Message.Text == decoded {
-								msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
-								bot.Send(msg)
+							continue
+						}
+					}
 
-								newCoworker := services.Coworker{
-									Secret: s,
-									Telegram: fmt.Sprintf("@%s", update.Message.Chat.UserName),
-								}
-								err := coworkersSheets.UpdateCoworker(ctx, newCoworker)
-								if err != nil {
-									msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка генерации кода. Обратитесь к администратору")
-									bot.Send(msg)
-								}
-								isAwaitingConfirmation = false
-
-								continue
-							}
-
+					if isAwaitingConfirmation {
 						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Пароль не верный, уточните у администратора")
 						bot.Send(msg)
 					}
