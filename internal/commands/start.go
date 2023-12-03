@@ -53,7 +53,8 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"/meetingroom – забронировать переговорку\n" +
 			"/printout – отправить документы на печать\n" +
 			"/events – информация о мероприятиях\n" +
-			"/about – информация о площадке и схема\n"
+			"/about – информация о площадке и схема\n" +
+			"/language – смена языка интерфейса\n"
 	} else if *args.Language == Languages[1].Lang {
 		msg.Text =
 			"В пространстве Letters and Numbers размещаются:\n" +
@@ -68,7 +69,8 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"/meetingroom – забронировать переговорку\n" +
 			"/printout – отправить документы на печать\n" +
 			"/events – информация о мероприятиях\n" +
-			"/about – информация о площадке и схема\n"
+			"/about – информация о площадке и схема\n" +
+			"/language – смена языка интерфейса\n"
 	}
 	
 	*args.CurrentCommand = ""
