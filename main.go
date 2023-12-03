@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 
+	"github.com/mkokoulin/LAN-coworking-bot/internal/commands"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/services"
 
@@ -14,12 +13,12 @@ import (
 )
 
 const (
-	START = "start"
-	WIFI = "wifi"
+	START       = "start"
+	WIFI        = "wifi"
 	MEETINGROOM = "meetingroom"
-	PRINTOUT = "printout"
-	EVENTS = "events"
-	ABOUT = "about"
+	PRINTOUT    = "printout"
+	EVENTS      = "events"
+	ABOUT       = "about"
 )
 
 func main() {
@@ -41,9 +40,14 @@ func main() {
 		log.Fatalf("fatal error %v", err)
 	}
 
+	botLogsSheets, err := services.NewBotLogsSheets(ctx, gc, cfg.CoworkersSpreadsheetId, cfg.BotLogsReadRange)
+	if err != nil {
+		log.Fatalf("fatal error %v", err)
+	}
+
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("fatal error %v", err)
 	}
 
 	bot.Debug = true
@@ -55,183 +59,39 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
-	currentCommand := ""
-	isAwaitingConfirmation := false
+	var currentCommand string
+	var isAwaitingConfirmation bool
+	var isAuthorized bool
+	var language string
+	var isBookingProcess bool
+	var isWifiProcess bool
 
 	go func() {
-        _ = http.ListenAndServe(":8080", http.HandlerFunc(
-            func(w http.ResponseWriter, r *http.Request) {
-                _, _ = w.Write([]byte("ok"))
-            },
-        ))
-    }()
+		_ = http.ListenAndServe(":8080", http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte("ok"))
+			},
+		))
+	}()
 
 	for update := range updates {
 		if update.Message != nil {
 			if update.Message.IsCommand() {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 				currentCommand = update.Message.Command()
-
-				switch currentCommand {
-					case START:
-						msg.Text =
-						"В пространстве Letters and Numbers размещаются:\n" +
-						"💻 коворкинг,\n" +
-						"☕️ кофейня и\n" +
-						"✨ площадка для мероприятий.\n\n" +
-						"Обязательно ознакомьтесь с разделом /about — там вы найдете информацию о наших локациях и правилах поведения в них.\n\n" +
-						"Выберите команду про продолжения диалога:\n\n" +
-						"команды:\n" +
-						"/start – перезапуск\n" +
-						"/wifi – получить пароль от вайфай\n" +
-						"/meetingroom – забронировать переговорку\n" +
-						"/printout – отправить документы на печать\n" +
-						"/events – информация о мероприятиях\n" +
-						"/about – информация о площадке и схема\n"
-					case WIFI:
-						isAwaitingConfirmation = false
-						
-						msg.Text = "Выберите ниже варианты сети: гостевой / коворкинг"
-						msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-							tgbotapi.NewKeyboardButtonRow(
-								tgbotapi.NewKeyboardButton("гостевой"),
-								tgbotapi.NewKeyboardButton("коворкинг"),
-							),
-						)
-					case MEETINGROOM:
-						msg.Text = "Напишите дату и интервал времени, на который вы хотите забронировать комнату для переговоров в формате yyyy-mm-dd hh:mm - hh:mm"
-					case PRINTOUT:
-						msg.Text = "Отправьте документы для распечатки в аккаунт @lan_yerevan (администратору) и уточните у него стоимость услуги"
-					case EVENTS:
-						msg.ParseMode = "html"
-						msg.Text = "У нас проходит большое количество разнообразных мероприятий, анонсы событий мы публикуем в наших социальных сетях: <a href='https://www.instagram.com/lan_yerevan/'>Instagram</a> и <a href='https://t.me/lan_yerevan'>Telegram</a>. Подписывайтесь, чтобы быть в курсе классных событий 🎉. Актуальный список мероприятий и бронирование ведется через <a href='https://taplink.cc/lan_yerevan'>taplink</a>"
-					case ABOUT:
-						msg.ParseMode = "html"
-						msg.Text = 
-						"🗺️ Направляем схему площадки, чтобы вам было легче сориентироваться. В пространстве Letters and Numbers размещаются: коворкинг, кофейня и площадка для мероприятий. Здесь отмечены наши локации и правила поведения в них.\n\n" +
-						"🐈 Адрес: г. Ереван<a href='https://yandex.ru/maps/-/CDecr088'>, ул. Туманяна 35Г.</a>\n\n" +
-						"— Чтобы воспользоваться помещениями и услугами коворкинга, необходимо выбрать и оплатить соответствующий тариф, ознакомиться с тарифами можно на <a href='https://lettersandnumbers.am/'>сайте.</a>\n\n" +
-						"— Посетителям кофейни мы предлагаем зал кофейни и уличную часть площадки.\n\n" +
-						"💻 В коворкинге есть тихая и шумная зона.\n\n" +
-						"🤫 Основной зал коворкинга и часть уличной террасы у окна являются тихой зоной с 10:00 и до 19:00. В это время не уместны разговоры и обязательно использование наушников для просмотра видео. Если кто-то из посетителей коворкинга нарушает тишину, то обратитесь к администратору. После 19:00 в основной зоне коворкинга можно созваниваться и разговаривать, сохраняя рабочую атмосферу пространства. В зал коворкинга можно брать с собой кофе, чай, печенье.\n\n" +
-						"☕ Зал кофейни и двор являются шумными зонами (кроме столиков у окна на террасе №1). Здесь можно проводить встречи, звонки, принимать пищу. Еду можно принести с собой и оставить на хранение в холодильнике (через бариста), заказать доставку и, конечно, приобрести в нашем кафе. Приоритетные места размещения коворкеров отмечены на схеме.\n\n" +
-						"🕜 Время работы коворкинга: будни 10-22, выходные 10-18. Площадка открыта каждый день с 10 до 22."
-
-						photoBytes, err := ioutil.ReadFile("internal/assets/Letters_and_Numbers_map.jpg")
-						if err != nil {
-							panic(err)
-						}
-						photoFileBytes := tgbotapi.FileBytes{
-							Name:  "scheme",
-							Bytes: photoBytes,
-						}
-
-						_, err = bot.Send(tgbotapi.NewPhoto(update.Message.Chat.ID, photoFileBytes))
-						if err != nil {
-							panic(err)
-						}
-
-					default:
-						msg.Text = "Я не знаю этой команды 😔"
-				}
-				
-				if _, err := bot.Send(msg); err != nil {
-					log.Print(err)
-				}
-
-				continue
 			}
 
-			if currentCommand == MEETINGROOM {
-				if update.Message.Text == "" {
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-					msg.Text = "Сообщение не может быть пустым"
-					bot.Send(msg)
-
-					continue
-				}
-
-				msgTo := tgbotapi.NewMessage(cfg.AdminChatId, fmt.Sprintf("Пользователь @%s просит забронировать переговорку - %s", update.Message.Chat.UserName, update.Message.Text))
-
-				bot.Send(msgTo)
-			}
-
-			if currentCommand == WIFI {
-				if !isAwaitingConfirmation {
-					if update.Message.Text == "гостевой" {
-						msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть Lan_Guest пароль %s", cfg.GuestWifiPassword))
-						currentCommand = ""
-						msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
-							RemoveKeyboard: true,
-							Selective: false,
-						}
-
-						bot.Send(msg)
-					}
-	
-					if update.Message.Text == "коворкинг" {
-						coworker, err := coworkersSheets.GetCoworker(ctx, fmt.Sprintf("@%s", update.Message.Chat.UserName))
-						if err != nil {
-							msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка генерации кода. Обратитесь к администратору")
-							bot.Send(msg)
-						}
-
-						if coworker.Telegram != "" {
-							msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
-
-							currentCommand = ""
-
-							msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
-								RemoveKeyboard: true,
-								Selective: false,
-							}
-							
-							bot.Send(msg)
-							continue
-						}
-						
-						isAwaitingConfirmation = true
-
-						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите номер, полученный от администратора")
-						bot.Send(msg)
-					}
-				} else {
-					unusedSecrets, err := coworkersSheets.GetUnusedSecrets(ctx)
-					if err != nil {
-						log.Fatalf("fatal error %v", err)
-					}
-
-					for _, s := range unusedSecrets {
-						if update.Message.Text == s {
-							msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword))
-							currentCommand = ""
-							msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
-								RemoveKeyboard: true,
-								Selective: false,
-							}
-
-							bot.Send(msg)
-
-							newCoworker := services.Coworker{
-								Secret: s,
-								Telegram: fmt.Sprintf("@%s", update.Message.Chat.UserName),
-							}
-							err := coworkersSheets.UpdateCoworker(ctx, newCoworker)
-							if err != nil {
-								msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Произошла ошибка генерации кода. Обратитесь к администратору")
-								bot.Send(msg)
-							}
-							isAwaitingConfirmation = false
-
-							break
-						}
-					}
-
-					if isAwaitingConfirmation {
-						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Пароль не верный, уточните у администратора")
-						bot.Send(msg)
-					}
-				}
+			err := commands.CommandsHandler(ctx, cfg, update, bot, commands.CommandsHandlerArgs{
+				Language:               &language,
+				CurrentCommand:         &currentCommand,
+				IsBookingProcess:       &isBookingProcess,
+				IsAwaitingConfirmation: &isAwaitingConfirmation,
+				IsAuthorized:           &isAuthorized,
+				CoworkersSheets:        coworkersSheets,
+				BotLogsSheets:		    botLogsSheets,
+				IsWifiProcess:          &isWifiProcess,
+			})
+			if err != nil {
+				log.Fatalf("fatal error %v", err)
 			}
 		}
 	}

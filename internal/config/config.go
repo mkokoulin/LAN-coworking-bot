@@ -19,6 +19,7 @@ type Config struct {
 	GuestWifiPassword string `env:"GUEST_WIFI_PASSWORD" json:"GUEST_WIFI_PASSWORD"`
 	CoworkingWifiPassword string `env:"COWORKING_WIFI_PASSWORD" json:"COWORKING_WIFI_PASSWORD"`
 	AdminChatId int64 `env:"ADMIN_CHAT_ID" json:"ADMIN_CHAT_ID"`
+	BotLogsReadRange string `env:"BOT_LOGS_READ_RANGE" json:"BOT_LOGS_READ_RANGE"`
 }
 
 func New() (*Config, error) {
@@ -85,6 +86,12 @@ func New() (*Config, error) {
 	cfg.AdminChatId = int64(i)
 
 	log.Default().Printf("[LAN-COWORKING-BOT] ADMIN_CHAT_ID: %v", cfg.AdminChatId)
+
+	cfg.BotLogsReadRange = os.Getenv("BOT_LOGS_READ_RANGE")
+	if cfg.BotLogsReadRange == "" {
+		return nil, fmt.Errorf("environment variable %v is not set or empty", "BOT_LOGS_READ_RANGE")
+	}
+	log.Default().Printf("[LAN-COWORKING-BOT] BOT_LOGS_READ_RANGE: %v", cfg.BotLogsReadRange)
 
 	return &cfg, nil
 }
