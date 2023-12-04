@@ -11,6 +11,8 @@ import (
 func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
+	*args.IsAuthorized = false
+
 	if *args.Language == "" {
 		if update.Message.Text != "" {
 			for _, v := range Languages {
