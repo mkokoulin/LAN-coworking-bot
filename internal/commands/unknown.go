@@ -12,7 +12,11 @@ import (
 func Unknown(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-	msg.Text = "Я не знаю этой команды 😔"
+	if *args.Language == Languages[0].Lang {
+		msg.Text = "I do not know this command 😔"
+	} else if *args.Language == Languages[1].Lang {
+		msg.Text = "Я не знаю этой команды 😔"
+	}
 	
 	_, err := bot.Send(msg)
 		

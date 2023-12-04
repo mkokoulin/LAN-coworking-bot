@@ -11,9 +11,13 @@ import (
 func Meetingroom(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-	if !*args.IsBookingProcess {
-		msg.Text = "Напишите дату и интервал времени, на который вы хотите забронировать комнату для переговоров в формате yyyy-mm-dd hh:mm - hh:mm"
-	
+	if !*args.IsBookingProcess {	
+		if *args.Language == Languages[0].Lang {
+			msg.Text = "Write the date and time interval for which you want to book a meeting room in the format yyyy-mm-dd hh:mm - hh:mm"
+		} else if *args.Language == Languages[1].Lang {
+			msg.Text = "Напишите дату и интервал времени, на который вы хотите забронировать комнату для переговоров в формате yyyy-mm-dd hh:mm - hh:mm"
+		}
+		
 		*args.IsBookingProcess = true
 
 		_, err := bot.Send(msg)
