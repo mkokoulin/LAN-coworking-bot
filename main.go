@@ -78,6 +78,7 @@ func main() {
 		if update.Message != nil {
 			if update.Message.IsCommand() {
 				currentCommand = update.Message.Command()
+				isAwaitingConfirmation = false
 				isBookingProcess = false
 				isWifiProcess = false
 			}

@@ -35,7 +35,12 @@ func Meetingroom(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotA
 		msgToAdmin := tgbotapi.NewMessage(cfg.AdminChatId, fmt.Sprintf("Пользователь @%s просит забронировать переговорку - %s", update.Message.Chat.UserName, update.Message.Text))
 		bot.Send(msgToAdmin)
 
-		msg.Text = "В ближайшее время с вами свяжется наш администратор 🧑‍💼"
+		if *args.Language == Languages[0].Lang {
+			msg.Text = "Our administrator will contact you soon 🧑‍💼"
+		} else if *args.Language == Languages[1].Lang {
+			msg.Text = "В ближайшее время с вами свяжется наш администратор 🧑‍💼"
+		}
+		
 		bot.Send(msg)
 
 		*args.IsBookingProcess = false
