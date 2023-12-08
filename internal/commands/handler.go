@@ -59,7 +59,9 @@ func CommandsHandler(ctx context.Context, cfg *config.Config, update tgbotapi.Up
 		if err != nil {
 			return err
 		}
-	} 
+	} else {
+		return Unknown(ctx, update, bot, cfg, args)
+	}		
 
 	return nil
 }

@@ -16,6 +16,8 @@ func Printout(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI,
 		msg.Text = "Отправьте документы для распечатки в аккаунт @lan_yerevan (администратору) и уточните у него стоимость услуги"
 	}
 
+	*args.CurrentCommand = ""
+
 	_, err := bot.Send(msg)
 		
 	return err

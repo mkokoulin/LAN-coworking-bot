@@ -78,6 +78,8 @@ func main() {
 		if update.Message != nil {
 			if update.Message.IsCommand() {
 				currentCommand = update.Message.Command()
+				isBookingProcess = false
+				isWifiProcess = false
 			}
 
 			err := commands.CommandsHandler(ctx, cfg, update, bot, commands.CommandsHandlerArgs{

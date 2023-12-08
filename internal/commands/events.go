@@ -17,6 +17,9 @@ func Events(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, c
 	} else if *args.Language == Languages[1].Lang {
 		msg.Text = "У нас проходит большое количество разнообразных мероприятий, анонсы событий мы публикуем в наших социальных сетях: <a href='https://www.instagram.com/lan_yerevan/'>Instagram</a> и <a href='https://t.me/lan_yerevan'>Telegram</a>. Подписывайтесь, чтобы быть в курсе классных событий 🎉. Актуальный список мероприятий и бронирование ведется через <a href='https://taplink.cc/lan_yerevan'>taplink</a>"
 	}
+
+	*args.CurrentCommand = ""
+
 	_, err := bot.Send(msg)
 		
 	return err
