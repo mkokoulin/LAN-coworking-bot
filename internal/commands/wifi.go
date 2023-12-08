@@ -135,7 +135,7 @@ func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg
 				if *args.Language == Languages[0].Lang {
 					msg.Text = "The password is incorrect, check with the administrator"
 				} else if *args.Language == Languages[1].Lang {
-					msg.Text = "Пароль не верный, уточните у администратора"
+					msg.Text = "Пароль неверный, уточните у администратора"
 				}
 				
 				_, err := bot.Send(msg)
