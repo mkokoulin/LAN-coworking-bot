@@ -22,6 +22,12 @@ const (
 )
 
 func main() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("panic occurred:", err)
+		}
+	}()
+
 	ctx := context.Background()
 
 	cfg, err := config.New()
@@ -45,6 +51,11 @@ func main() {
 		log.Fatalf("fatal error %v", err)
 	}
 
+	guestSheets, err := services.NewGuestSheets(ctx, gc, cfg.CoworkersSpreadsheetId, cfg.GuestsReadRange)
+	if err != nil {
+		log.Fatalf("fatal error %v", err)
+	}
+
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
 		log.Fatalf("fatal error %v", err)
@@ -59,6 +70,7 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
+	var isGuestSaved bool
 	var currentCommand string
 	var isAwaitingConfirmation bool
 	var isAuthorized bool
@@ -76,6 +88,21 @@ func main() {
 
 	for update := range updates {
 		if update.Message != nil {
+			if !isGuestSaved {
+				guest := services.Guest{}
+				
+				guest.FirstName = update.Message.Chat.FirstName
+				guest.LastName = update.Message.Chat.LastName
+				guest.Telegram = update.Message.Chat.UserName
+	
+				err := guestSheets.CreateGuest(ctx, cfg.GuestsReadRange, guest)
+				if err != nil {
+					log.Default().Println("failed to save the guest")
+				}
+	
+				isGuestSaved = true
+			}
+
 			if update.Message.IsCommand() {
 				currentCommand = update.Message.Command()
 				isAwaitingConfirmation = false
@@ -92,6 +119,7 @@ func main() {
 				CoworkersSheets:        coworkersSheets,
 				BotLogsSheets:		    botLogsSheets,
 				IsWifiProcess:          &isWifiProcess,
+				GuestSheets: 			guestSheets,
 			})
 			if err != nil {
 				log.Fatalf("fatal error %v", err)

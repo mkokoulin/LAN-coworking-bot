@@ -39,6 +39,7 @@ type CommandsHandlerArgs struct {
 	CoworkersSheets *services.CoworkersSheetService
 	BotLogsSheets *services.BotLogsSheetService
 	IsWifiProcess *bool
+	GuestSheets *services.GuestsSheetService
 }
 
 func CommandsHandler(ctx context.Context, cfg *config.Config, update tgbotapi.Update, bot *tgbotapi.BotAPI, args CommandsHandlerArgs) error {

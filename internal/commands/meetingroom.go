@@ -36,7 +36,7 @@ func Meetingroom(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotA
 		bot.Send(msgToAdmin)
 
 		if *args.Language == Languages[0].Lang {
-			msg.Text = "Our administrator will contact you soon 🧑‍💼"
+			msg.Text = "Our administrator will contact you soon🧑‍💼"
 		} else if *args.Language == Languages[1].Lang {
 			msg.Text = "В ближайшее время с вами свяжется наш администратор 🧑‍💼"
 		}

@@ -13,9 +13,11 @@ func Unknown(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
 	if *args.Language == Languages[0].Lang {
-		msg.Text = "I do not know this command 😔"
+		msg.Text = "I do not know this command 😔 use the /start command"
 	} else if *args.Language == Languages[1].Lang {
-		msg.Text = "Я не знаю этой команды 😔"
+		msg.Text = "Я не знаю этой команды 😔 воспользуйтесь командой /start"
+	} else {
+		msg.Text = "I do not know this command 😔 use the /start command"
 	}
 	
 	_, err := bot.Send(msg)
