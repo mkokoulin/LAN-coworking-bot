@@ -57,8 +57,6 @@ func (ESS *GuestsSheetService) GetGuests(ctx context.Context) ([]Guest, error) {
 			rawCoworker := map[string]string{}
 
 			for i, v := range header {
-				fmt.Println(len(val))
-
 				if len(val) - 1 < i {
 					rawCoworker[v] = ""
 				} else {

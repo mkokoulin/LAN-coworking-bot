@@ -5,20 +5,12 @@ import (
 	"log"
 	"net/http"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
 	"github.com/mkokoulin/LAN-coworking-bot/internal/commands"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/services"
-
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-)
-
-const (
-	START       = "start"
-	WIFI        = "wifi"
-	MEETINGROOM = "meetingroom"
-	PRINTOUT    = "printout"
-	EVENTS      = "events"
-	ABOUT       = "about"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
 func main() {
@@ -70,13 +62,7 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
-	var isGuestSaved bool
-	var currentCommand string
-	var isAwaitingConfirmation bool
-	var isAuthorized bool
-	var language string
-	var isBookingProcess bool
-	var isWifiProcess bool
+	var storage = map[int64] *types.ChatStorage {}
 
 	go func() {
 		_ = http.ListenAndServe(":8080", http.HandlerFunc(
@@ -87,8 +73,16 @@ func main() {
 	}()
 
 	for update := range updates {
+		_, ok := storage[update.Message.Chat.ID]
+
+		if !ok {
+			storage[update.Message.Chat.ID] = &types.ChatStorage{}
+		}
+
+		s := storage[update.Message.Chat.ID]
+
 		if update.Message != nil {
-			if !isGuestSaved {
+			go func() {
 				guest := services.Guest{}
 				
 				guest.FirstName = update.Message.Chat.FirstName
@@ -99,27 +93,21 @@ func main() {
 				if err != nil {
 					log.Default().Println("failed to save the guest")
 				}
-	
-				isGuestSaved = true
-			}
+			}()
 
 			if update.Message.IsCommand() {
-				currentCommand = update.Message.Command()
-				isAwaitingConfirmation = false
-				isBookingProcess = false
-				isWifiProcess = false
+				s.IsAwaitingConfirmation = false
+				s.IsBookingProcess = false
+				s.IsWifiProcess = false
+
+				s.CurrentCommand = update.Message.Command()
 			}
 
 			err := commands.CommandsHandler(ctx, cfg, update, bot, commands.CommandsHandlerArgs{
-				Language:               &language,
-				CurrentCommand:         &currentCommand,
-				IsBookingProcess:       &isBookingProcess,
-				IsAwaitingConfirmation: &isAwaitingConfirmation,
-				IsAuthorized:           &isAuthorized,
 				CoworkersSheets:        coworkersSheets,
 				BotLogsSheets:		    botLogsSheets,
-				IsWifiProcess:          &isWifiProcess,
 				GuestSheets: 			guestSheets,
+				Storage: 				s,
 			})
 			if err != nil {
 				log.Fatalf("fatal error %v", err)

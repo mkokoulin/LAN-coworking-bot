@@ -31,8 +31,9 @@ func Language(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI,
 	if update.Message.Text != "" {
 		for _, v := range Languages {
 			if update.Message.Text == v.Lang {
-				*args.Language = v.Lang
-				*args.CurrentCommand = ""
+				args.Storage.Language = v.Lang
+				
+				args.Storage.CurrentCommand = ""
 
 				if v.Lang == Languages[0].Lang {
 					msg.Text = fmt.Sprintf("Selected %s", v.Lang)
@@ -46,6 +47,7 @@ func Language(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI,
 				}
 
 				_, err := bot.Send(msg)
+
 				return err
 			}
 		}
@@ -53,25 +55,22 @@ func Language(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI,
 		return nil
 	}
 
-	if *args.CurrentCommand == LANGUAGE || *args.CurrentCommand == START {
-		descs := []string {}
+	descs := []string {}
 	
-		for _, v := range Languages {
-			descs = append(descs, v.Desc)
-		}
-	
-		msg.Text = fmt.Sprintf("%v 🌎", strings.Join(descs, " / "))
-		
-		msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-			tgbotapi.NewKeyboardButtonRow(
-				tgbotapi.NewKeyboardButton("🇺🇸 English"),
-				tgbotapi.NewKeyboardButton("🇷🇺 Русский"),
-			),
-		)	
-		_, err := bot.Send(msg)
-		return err
-			
+	for _, v := range Languages {
+		descs = append(descs, v.Desc)
 	}
 
-	return nil
+	msg.Text = fmt.Sprintf("%v 🌎", strings.Join(descs, " / "))
+	
+	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("🇺🇸 English"),
+			tgbotapi.NewKeyboardButton("🇷🇺 Русский"),
+		),
+	)	
+	
+	_, err := bot.Send(msg)
+	
+	return err
 }

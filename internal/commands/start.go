@@ -2,7 +2,7 @@ package commands
 
 import (
 	"context"
-	"fmt"
+	// "fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
@@ -11,37 +11,9 @@ import (
 func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-	*args.IsAuthorized = false
+	args.Storage.IsAuthorized = false
 
-	if *args.Language == "" {
-		if update.Message.Text != "" {
-			for _, v := range Languages {
-				if update.Message.Text == v.Lang {
-					*args.Language = v.Lang
-
-					if v.Lang == Languages[0].Lang {
-						msg.Text = fmt.Sprintf("Selected %s", v.Lang)
-					} else if v.Lang == Languages[1].Lang {
-						msg.Text = fmt.Sprintf("Выбран %s", v.Lang)
-					}
-
-					msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
-						RemoveKeyboard: true,
-						Selective: false,
-					}
-				}
-			}
-		} else {
-			return nil
-		}
-
-		if *args.Language == "" {
-			Language(ctx, update, bot, cfg, args)
-			return nil
-		}
-	}
-
-	if *args.Language == Languages[0].Lang {
+	if args.Storage.Language == Languages[0].Lang {
 		msg.Text =
 			"The Letters and Numbers space contains:\n" +
 			"💻 coworking,\n" +
@@ -57,7 +29,7 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"/events – information about events\n" +
 			"/about – information about the site and the scheme\n" +
 			"/language – changing the interface language\n"
-	} else if *args.Language == Languages[1].Lang {
+	} else if args.Storage.Language == Languages[1].Lang {
 		msg.Text =
 			"В пространстве Letters and Numbers размещаются:\n" +
 			"💻 коворкинг,\n" +
@@ -75,7 +47,7 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"/language – смена языка интерфейса\n"
 	}
 	
-	*args.CurrentCommand = ""
+	args.Storage.CurrentCommand = ""
 
 	_, err := bot.Send(msg)
 		

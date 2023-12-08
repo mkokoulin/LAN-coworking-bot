@@ -5,6 +5,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/services"
 )
 
@@ -31,31 +32,39 @@ var commandList = map[string]Command {
 }
 
 type CommandsHandlerArgs struct {
-	Language *string
-	CurrentCommand *string
-	IsBookingProcess *bool
-	IsAwaitingConfirmation *bool
-	IsAuthorized *bool
 	CoworkersSheets *services.CoworkersSheetService
 	BotLogsSheets *services.BotLogsSheetService
-	IsWifiProcess *bool
+	Storage *types.ChatStorage
 	GuestSheets *services.GuestsSheetService
 }
 
 func CommandsHandler(ctx context.Context, cfg *config.Config, update tgbotapi.Update, bot *tgbotapi.BotAPI, args CommandsHandlerArgs) error {
-	if *args.CurrentCommand != "" {
-		if _, ok := commandList[*args.CurrentCommand]; !ok {
+	if args.Storage.Language == "" {
+		args.Storage.CurrentCommand = LANGUAGE
+
+		Language(ctx, update, bot, cfg, args)
+
+		if args.Storage.Language != "" {
+			args.Storage.CurrentCommand = START
+			return Start(ctx, update, bot, cfg, args)
+		}
+		
+		return nil
+	}
+	
+	if args.Storage.CurrentCommand != "" {
+		if _, ok := commandList[args.Storage.CurrentCommand]; !ok {
 			return Unknown(ctx, update, bot, cfg, args)
 		}
 
-		err := commandList[*args.CurrentCommand](ctx, update, bot, cfg, args)
+		err := commandList[args.Storage.CurrentCommand](ctx, update, bot, cfg, args)
 		if err != nil {
 			return err
 		}
 
 		err = args.BotLogsSheets.Log(ctx, cfg.BotLogsReadRange, services.BotLog{
 			Telegram: update.Message.Chat.UserName,
-			Command: *args.CurrentCommand,
+			Command: args.Storage.CurrentCommand,
 		})
 		if err != nil {
 			return err
