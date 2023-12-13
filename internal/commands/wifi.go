@@ -110,9 +110,9 @@ func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 					
 					if args.Storage.Language == Languages[0].Lang {
-						msg.Text = fmt.Sprintf("LAN network password %s", cfg.CoworkingWifiPassword)
+						msg.Text = fmt.Sprintf("L&N network password %s", cfg.CoworkingWifiPassword)
 					} else if args.Storage.Language == Languages[1].Lang {
-						msg.Text = fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword)
+						msg.Text = fmt.Sprintf("сеть L&N пароль %s", cfg.CoworkingWifiPassword)
 					}
 
 					args.Storage.CurrentCommand = ""
