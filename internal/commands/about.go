@@ -12,7 +12,7 @@ func About(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
 	msg.ParseMode = "html"
-	if args.Storage.Language == Languages[0].Lang {
+	if args.ChatState.Language == Languages[0].Lang {
 		msg.Text =
 			"We are directing the layout of the site so that it is easier for you to navigate. The Letters and Numbers space houses: a coworking space, a coffee shop and an event space. Our locations and the rules of behavior in them are marked here.\n\n"+
 			"🐈 Address: Yerevan<a href='https://yandex.ru/maps/-/CDecr088'>, 35 Tumanyan str.</a>\n\n"+
@@ -22,7 +22,7 @@ func About(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"The main coworking hall and part of the outdoor terrace by the window are a quiet area from 10:00 to 19:00. At this time, conversations are not appropriate and it is necessary to use headphones to watch videos. If one of the coworking visitors breaks the silence, then contact the administrator. After 19:00 in the main coworking area, you can call and talk, while maintaining the working atmosphere of the space. You can take coffee, tea, and cookies with you to the coworking room.\n\n" +
 			"The coffee shop hall and the courtyard are noisy areas (except for the tables by the window on terrace No. 1). Meetings, calls, and meals can be held here. You can bring food with you and store it in the refrigerator (through a barista), order delivery and, of course, purchase it in our cafe. The priority locations of coworkers are marked on the diagram.\n\n"+
 			"🕜 Coworking hours: weekdays 10-22, weekends 10-18. The playground is open every day from 10 to 22."
-	} else if args.Storage.Language == Languages[1].Lang {
+	} else if args.ChatState.Language == Languages[1].Lang {
 		msg.Text = 
 			"🗺️ Направляем схему площадки, чтобы вам было легче сориентироваться. В пространстве Letters and Numbers размещаются: коворкинг, кофейня и площадка для мероприятий. Здесь отмечены наши локации и правила поведения в них.\n\n" +
 			"🐈 Адрес: г. Ереван<a href='https://yandex.ru/maps/-/CDecr088'>, ул. Туманяна 35Г.</a>\n\n" +

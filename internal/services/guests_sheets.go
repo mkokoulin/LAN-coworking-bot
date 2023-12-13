@@ -23,6 +23,7 @@ type Guest struct {
 	FirstName string `json:"firstName" mapstructure:"firstName"`
 	LastName string `json:"lastName" mapstructure:"lastName"`
 	Datetime string `json:"datetime" mapstructure:"datetime"`
+	Commands []string `json:"commands" mapstructure:"commands"`
 }
 
 func NewGuestSheets(ctx context.Context, googleClient *http.Client, spreadsheetId, readRange string) (*GuestsSheetService, error) {
@@ -102,22 +103,22 @@ func (ESS *GuestsSheetService) GetGuest(ctx context.Context, guest string) (Gues
 	return g, nil
 }
 
-func (ESS *GuestsSheetService) CreateGuest(ctx context.Context, readRange string, guest Guest) error {
-	g, err := ESS.GetGuest(ctx, guest.Telegram)
+func (ESS *GuestsSheetService) CreateGuest(ctx context.Context, readRange string, guest Guest) (Guest, error) {
+	resGuest, err := ESS.GetGuest(ctx, guest.Telegram)
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return Guest{}, fmt.Errorf("%v", err)
 	}
 
 	newGuest := guest.FirstName + guest.LastName + guest.Telegram
-	oldGuest := g.FirstName + g.LastName + g.Telegram
+	oldGuest := resGuest.FirstName + resGuest.LastName + resGuest.Telegram
 
 	if newGuest == oldGuest {
-		return nil
+		return resGuest, nil
 	}
 
 	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, readRange).Do()
 	if err != nil || res.HTTPStatusCode != 200 {
-		return fmt.Errorf("%v", err)
+		return Guest{}, fmt.Errorf("%v", err)
 	}
 
 	rowNumber := len(res.Values) + 2
@@ -138,8 +139,8 @@ func (ESS *GuestsSheetService) CreateGuest(ctx context.Context, readRange string
 
 	_, err = ESS.srv.Spreadsheets.Values.Update(ESS.spreadsheetId, updateRowRange, row).ValueInputOption("USER_ENTERED").Context(ctx).Do()
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return Guest{}, fmt.Errorf("%v", err)
 	}
 
-	return nil
+	return guest, nil
 }

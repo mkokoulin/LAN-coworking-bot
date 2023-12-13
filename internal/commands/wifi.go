@@ -12,8 +12,8 @@ import (
 func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-	if !args.Storage.IsWifiProcess {
-		if args.Storage.Language == Languages[0].Lang {
+	if !args.ChatState.IsWifiConfirmationProcess {
+		if args.ChatState.Language == Languages[0].Lang {
 			msg.Text = "Select the network options below: guest / coworking"
 
 			msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
@@ -22,7 +22,7 @@ func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg
 					tgbotapi.NewKeyboardButton("coworking"),
 				),
 			)
-		} else if args.Storage.Language == Languages[1].Lang {
+		} else if args.ChatState.Language == Languages[1].Lang {
 			msg.Text = "Выберите ниже варианты сети: гостевой / коворкинг"
 	
 			msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
@@ -33,26 +33,26 @@ func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg
 			)
 		}
 
-		args.Storage.IsWifiProcess = true
+		args.ChatState.IsWifiConfirmationProcess = true
 		
 		_, err := bot.Send(msg)
 		return err
 	}
 		
 
-	if !args.Storage.IsAwaitingConfirmation {
+	if !args.ChatState.IsAwaitingConfirmation {
 		if update.Message.Text == "guest" || update.Message.Text == "гостевой" {
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 			
-			if args.Storage.Language == Languages[0].Lang {
+			if args.ChatState.Language == Languages[0].Lang {
 				msg.Text = fmt.Sprintf("Lan_Guest network password %s", cfg.GuestWifiPassword)
-			} else if args.Storage.Language == Languages[1].Lang {
+			} else if args.ChatState.Language == Languages[1].Lang {
 				msg.Text = fmt.Sprintf("сеть Lan_Guest пароль %s", cfg.GuestWifiPassword)
 			}
 
-			args.Storage.CurrentCommand = ""
+			args.ChatState.CurrentCommand = ""
 
-			args.Storage.IsWifiProcess = false
+			args.ChatState.IsWifiConfirmationProcess = false
 
 			msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
 				RemoveKeyboard: true,
@@ -64,18 +64,18 @@ func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg
 		}
 
 		if update.Message.Text == "coworking" || update.Message.Text == "коворкинг" {
-			if args.Storage.IsAuthorized {
+			if args.ChatState.IsAuthorized {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-				if args.Storage.Language == Languages[0].Lang {
+				if args.ChatState.Language == Languages[0].Lang {
 					msg.Text = fmt.Sprintf("LAN network password %s", cfg.CoworkingWifiPassword)
-				} else if args.Storage.Language == Languages[1].Lang {
+				} else if args.ChatState.Language == Languages[1].Lang {
 					msg.Text = fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword)
 				}
 
-				args.Storage.CurrentCommand = ""
+				args.ChatState.CurrentCommand = ""
 
-				args.Storage.IsWifiProcess = false
+				args.ChatState.IsWifiConfirmationProcess = false
 
 				msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
 					RemoveKeyboard: true,
@@ -86,13 +86,13 @@ func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg
 				return err
 			}
 			
-				args.Storage.IsAwaitingConfirmation = true
+				args.ChatState.IsAwaitingConfirmation = true
 
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-				if args.Storage.Language == Languages[0].Lang {
+				if args.ChatState.Language == Languages[0].Lang {
 					msg.Text = "Enter the number you received from the administrator"
-				} else if args.Storage.Language == Languages[1].Lang {
+				} else if args.ChatState.Language == Languages[1].Lang {
 					msg.Text = "Введите номер, полученный от администратора"
 				}
 				
@@ -109,35 +109,35 @@ func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg
 				if update.Message.Text == s {
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 					
-					if args.Storage.Language == Languages[0].Lang {
+					if args.ChatState.Language == Languages[0].Lang {
 						msg.Text = fmt.Sprintf("LAN network password %s", cfg.CoworkingWifiPassword)
-					} else if args.Storage.Language == Languages[1].Lang {
+					} else if args.ChatState.Language == Languages[1].Lang {
 						msg.Text = fmt.Sprintf("сеть LAN пароль %s", cfg.CoworkingWifiPassword)
 					}
 
-					args.Storage.CurrentCommand = ""
+					args.ChatState.CurrentCommand = ""
 					
-					args.Storage.IsWifiProcess = false
+					args.ChatState.IsWifiConfirmationProcess = false
 					
 					msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
 						RemoveKeyboard: true,
 						Selective: false,
 					}
 
-					args.Storage.IsAwaitingConfirmation = false
-					args.Storage.IsAuthorized = true
+					args.ChatState.IsAwaitingConfirmation = false
+					args.ChatState.IsAuthorized = true
 
 					_, err := bot.Send(msg)
 					return err
 				}
 			}
 
-			if args.Storage.IsAwaitingConfirmation {
+			if args.ChatState.IsAwaitingConfirmation {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-				if args.Storage.Language == Languages[0].Lang {
+				if args.ChatState.Language == Languages[0].Lang {
 					msg.Text = "The password is incorrect, check with the administrator"
-				} else if args.Storage.Language == Languages[1].Lang {
+				} else if args.ChatState.Language == Languages[1].Lang {
 					msg.Text = "Пароль неверный, уточните у администратора"
 				}
 				

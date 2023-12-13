@@ -11,9 +11,9 @@ import (
 func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-	args.Storage.IsAuthorized = false
+	args.ChatState.IsAuthorized = false
 
-	if args.Storage.Language == Languages[0].Lang {
+	if args.ChatState.Language == Languages[0].Lang {
 		msg.Text =
 			"The Letters and Numbers space contains:\n" +
 			"💻 coworking,\n" +
@@ -29,7 +29,7 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"/events – information about events\n" +
 			"/about – information about the site and the scheme\n" +
 			"/language – changing the interface language\n"
-	} else if args.Storage.Language == Languages[1].Lang {
+	} else if args.ChatState.Language == Languages[1].Lang {
 		msg.Text =
 			"В пространстве Letters and Numbers размещаются:\n" +
 			"💻 коворкинг,\n" +
@@ -47,7 +47,7 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"/language – смена языка интерфейса\n"
 	}
 	
-	args.Storage.CurrentCommand = ""
+	args.ChatState.CurrentCommand = ""
 
 	_, err := bot.Send(msg)
 		

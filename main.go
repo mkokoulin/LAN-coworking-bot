@@ -6,11 +6,13 @@ import (
 	"net/http"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/google/uuid"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/commands"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/services"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/helpers/stack"
 )
 
 func main() {
@@ -48,6 +50,15 @@ func main() {
 		log.Fatalf("fatal error %v", err)
 	}
 
+	fdb := services.FirebaseDB()
+
+	firebaseStore := services.NewStore(fdb)
+
+	err = fdb.Connect(cfg.FirebasePrivateKey)
+	if err != nil {
+		log.Fatalf("fatal error %v", err)
+	}
+
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
 		log.Fatalf("fatal error %v", err)
@@ -62,7 +73,7 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
-	var storage = map[int64] *types.ChatStorage {}
+	var storage = map[int64]*types.ChatStorage{}
 
 	go func() {
 		_ = http.ListenAndServe(":8080", http.HandlerFunc(
@@ -73,41 +84,49 @@ func main() {
 	}()
 
 	for update := range updates {
+		newChat := types.ChatStorage{
+			ID:     uuid.New(),
+			ChatID: update.Message.Chat.ID,
+		}
+
+		chatState, err := firebaseStore.CreateIfNotExists(&newChat)
+		if err != nil {
+			log.Default().Println("[firebase] failed to create a chat")
+		}
+
 		_, ok := storage[update.Message.Chat.ID]
 
 		if !ok {
 			storage[update.Message.Chat.ID] = &types.ChatStorage{}
 		}
 
-		s := storage[update.Message.Chat.ID]
-
 		if update.Message != nil {
+			var commandsStack stack.CommandsStack
+
 			go func() {
 				guest := services.Guest{}
-				
+
 				guest.FirstName = update.Message.Chat.FirstName
 				guest.LastName = update.Message.Chat.LastName
 				guest.Telegram = update.Message.Chat.UserName
-	
-				err := guestSheets.CreateGuest(ctx, cfg.GuestsReadRange, guest)
+
+				guest, err = guestSheets.CreateGuest(ctx, cfg.GuestsReadRange, guest)
 				if err != nil {
 					log.Default().Println("failed to save the guest")
 				}
+
+				for _, command := range guest.Commands {
+					commandsStack.Push(command)
+				}
 			}()
 
-			if update.Message.IsCommand() {
-				s.IsAwaitingConfirmation = false
-				s.IsBookingProcess = false
-				s.IsWifiProcess = false
-
-				s.CurrentCommand = update.Message.Command()
-			}
-
-			err := commands.CommandsHandler(ctx, cfg, update, bot, commands.CommandsHandlerArgs{
-				CoworkersSheets:        coworkersSheets,
-				BotLogsSheets:		    botLogsSheets,
-				GuestSheets: 			guestSheets,
-				Storage: 				s,
+			err := commands.CommandsHandler(ctx, cfg, update, bot, commands.CommandsHandlerArgs {
+				CoworkersSheets: coworkersSheets,
+				BotLogsSheets:   botLogsSheets,
+				GuestSheets:     guestSheets,
+				ChatState: 		 chatState,
+				FirebaseStore:   firebaseStore,
+				CommandsStack: 	 &commandsStack,
 			})
 			if err != nil {
 				log.Fatalf("fatal error %v", err)

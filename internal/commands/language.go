@@ -31,9 +31,8 @@ func Language(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI,
 	if update.Message.Text != "" {
 		for _, v := range Languages {
 			if update.Message.Text == v.Lang {
-				args.Storage.Language = v.Lang
-				
-				args.Storage.CurrentCommand = ""
+				args.ChatState.Language = v.Lang
+				args.ChatState.IsLanguageSelectionProcess = false
 
 				if v.Lang == Languages[0].Lang {
 					msg.Text = fmt.Sprintf("Selected %s", v.Lang)
@@ -46,7 +45,12 @@ func Language(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI,
 					Selective: false,
 				}
 
-				_, err := bot.Send(msg)
+				err := args.FirebaseStore.Update(update.Message.Chat.ID, *args.ChatState)
+				if err != nil {
+					return err
+				}
+
+				_, err = bot.Send(msg)
 
 				return err
 			}
@@ -68,9 +72,16 @@ func Language(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI,
 			tgbotapi.NewKeyboardButton("🇺🇸 English"),
 			tgbotapi.NewKeyboardButton("🇷🇺 Русский"),
 		),
-	)	
-	
-	_, err := bot.Send(msg)
+	)
+
+	args.ChatState.IsLanguageSelectionProcess = true
+
+	err := args.FirebaseStore.Update(update.Message.Chat.ID, *args.ChatState)
+	if err != nil {
+		return err
+	}
+
+	_, err = bot.Send(msg)
 	
 	return err
 }

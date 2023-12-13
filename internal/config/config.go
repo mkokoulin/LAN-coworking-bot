@@ -21,6 +21,7 @@ type Config struct {
 	AdminChatId int64 `env:"ADMIN_CHAT_ID" json:"ADMIN_CHAT_ID"`
 	BotLogsReadRange string `env:"BOT_LOGS_READ_RANGE" json:"BOT_LOGS_READ_RANGE"`
 	GuestsReadRange string `env:"GUESTS_READ_RANGE" json:"GUESTS_READ_RANGE"`
+	FirebasePrivateKey services.FirebasePrivateKey `env:"FIREBASE_PRIVATE_KEY" json:"FIREBASE_PRIVATE_KEY"`
 }
 
 func New() (*Config, error) {
@@ -99,6 +100,18 @@ func New() (*Config, error) {
 		return nil, fmt.Errorf("environment variable %v is not set or empty", "GUESTS_READ_RANGE")
 	}
 	log.Default().Printf("[LAN-COWORKING-BOT] GUESTS_READ_RANGE: %v", cfg.GuestsReadRange)
+
+	firebasePrivateKeyString := os.Getenv("FIREBASE_PRIVATE_KEY")
+	if firebasePrivateKeyString == "" {
+		return nil, fmt.Errorf("environment variable %v is not set or empty", "FIREBASE_PRIVATE_KEY")
+	}
+
+	var firebasePrivateKey services.FirebasePrivateKey
+	if err := json.Unmarshal([]byte(firebasePrivateKeyString), &firebasePrivateKey); err != nil {
+		return nil, fmt.Errorf("error parsing JSON: %v", err)
+	}
+	log.Default().Printf("[LAN-TG-BOT] FIREBASE_PRIVATE_KEY: %v", cfg.FirebasePrivateKey)
+	cfg.FirebasePrivateKey = firebasePrivateKey;
 
 	return &cfg, nil
 }
