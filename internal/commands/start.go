@@ -27,6 +27,7 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"/meetingroom – book a meeting\n" +
 			"/printout – send documents for printing\n" +
 			"/events – information about events\n" +
+			"/menu – bar menu 🍷\n" +
 			"/about – information about the site and the scheme\n" +
 			"/language – changing the interface language\n"
 	} else if args.Storage.Language == Languages[1].Lang {
@@ -43,8 +44,9 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"/meetingroom – забронировать переговорку\n" +
 			"/printout – отправить документы на печать\n" +
 			"/events – информация о мероприятиях\n" +
+			"/menu – меню бара 🍷\n" +
 			"/about – информация о площадке и схема\n" +
-			"/language – смена языка интерфейса\n"
+			"/language – смена языка интерфейса\n" 
 	}
 	
 	args.Storage.CurrentCommand = ""

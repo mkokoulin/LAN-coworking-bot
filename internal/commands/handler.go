@@ -17,6 +17,7 @@ const (
 	EVENTS = "events"
 	ABOUT = "about"
 	LANGUAGE = "language"
+	MENU = "menu"
 )
 
 type Command func (ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error
@@ -29,6 +30,7 @@ var commandList = map[string]Command {
 	EVENTS: Events,
 	ABOUT: About,
 	LANGUAGE: Language,
+	MENU: Menu,
 }
 
 type CommandsHandlerArgs struct {
