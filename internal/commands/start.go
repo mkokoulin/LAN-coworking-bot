@@ -23,13 +23,14 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"Select the command to continue the dialog:\n\n" +
 			"commands:\n" +
 			"/start – restart\n" +
+			"/booking – book your first visit 🎁✨\n"
 			"/wifi – get a password from wifi\n" +
 			"/meetingroom – book a meeting\n" +
 			"/printout – send documents for printing\n" +
 			"/events – information about events\n" +
 			"/menu – bar menu 🍷\n" +
 			"/about – information about the site and the scheme\n" +
-			"/language – changing the interface language\n"
+			"/language – changing the interface language\n" +
 	} else if args.Storage.Language == Languages[1].Lang {
 		msg.Text =
 			"В пространстве Letters and Numbers размещаются:\n" +
@@ -40,13 +41,14 @@ func Start(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cf
 			"Выберите команду про продолжения диалога:\n\n" +
 			"команды:\n" +
 			"/start – перезапуск\n" +
+			"/booking – забронировать своё первое посещение 🎁✨\n" +
 			"/wifi – получить пароль от вайфай\n" +
 			"/meetingroom – забронировать переговорку\n" +
 			"/printout – отправить документы на печать\n" +
 			"/events – информация о мероприятиях\n" +
 			"/menu – меню бара 🍷\n" +
 			"/about – информация о площадке и схема\n" +
-			"/language – смена языка интерфейса\n" 
+			"/language – смена языка интерфейса\n" +
 	}
 	
 	args.Storage.CurrentCommand = ""
