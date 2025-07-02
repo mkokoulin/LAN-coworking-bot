@@ -13,10 +13,10 @@ func Booking(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, 
 	msg.ParseMode = "html"
 	if args.Storage.Language == Languages[0].Lang {
 		msg.Text =
-			"You can book your first visit to the coworking space for 2 hours for free and a coffee of your choice. Just contact us: <a href='https://t.me/lan_yerevan'>telegram</a>, phone — +37494601303."
+			"You can book your first visit to the coworking space for 2 hours for free or a coffee of your choice. Just contact us: <a href='https://t.me/lan_yerevan'>telegram</a>, phone — +37494601303."
 	} else if args.Storage.Language == Languages[1].Lang {
 		msg.Text =
-			"Вы можете забронировать своё первое посещение коворкинга на 2 часа бесплатно и получить кофе на ваш выбор. Просто свяжитесь с нами: <a href='https://t.me/lan_yerevan'>telegram</a>, телефон — +37494601303."
+			"Вы можете забронировать своё первое посещение коворкинга на 2 часа бесплатно или получить кофе на ваш выбор. Просто свяжитесь с нами: <a href='https://t.me/lan_yerevan'>telegram</a>, телефон — +37494601303."
 	}
 
 	_, err := bot.Send(msg)
