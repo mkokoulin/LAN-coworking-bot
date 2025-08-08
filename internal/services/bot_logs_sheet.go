@@ -13,13 +13,13 @@ import (
 
 type BotLogsSheetService struct {
 	spreadsheetId string
-	readRange string
-	srv *sheets.Service
+	readRange     string
+	srv           *sheets.Service
 }
 
 type BotLog struct {
 	Telegram string `json:"telegram" mapstructure:"telegram"`
-	Command string `json:"command" mapstructure:"command"`
+	Command  string `json:"command" mapstructure:"command"`
 	Datetime string `json:"datetime" mapstructure:"datetime"`
 }
 

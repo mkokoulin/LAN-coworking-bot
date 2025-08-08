@@ -1,10 +1,10 @@
 package types
 
 type ChatStorage struct {
-	CurrentCommand string
+	Language               string
+	IsAuthorized           bool
+	IsBookingProcess       bool
+	IsWifiProcess          bool
 	IsAwaitingConfirmation bool
-	IsAuthorized bool
-	Language string
-	IsBookingProcess bool
-	IsWifiProcess bool
+	CurrentCommand         string
 }

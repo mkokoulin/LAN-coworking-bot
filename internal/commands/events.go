@@ -7,84 +7,94 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"sort"
+	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/locales"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
-type Event struct {
-	Capacity string
-	Date string
-	Description string
-	ExternalLink string
-	Id string
-	Img string
-	Link string
-	Name string
-	ShowForm bool
-	Type string
+func stripHTML(input string) string {
+	re := regexp.MustCompile(`<.*?>`)
+	return strings.TrimSpace(re.ReplaceAllString(input, ""))
 }
 
-func stripHtmlRegex(s string, regex string) string {
-    r := regexp.MustCompile(regex)
-    return r.ReplaceAllString(s, "")
+func parseEventDate(s string) (time.Time, error) {
+	formats := []string{
+		"2006-01-02",  // ISO
+		"02.01.2006",  // RU
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unrecognized date format: %s", s)
 }
 
-func Events(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+func EventsCommand(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, state *types.ChatStorage) error {
+	p := locales.Printer(state.Language)
+	chatID := update.Message.Chat.ID
 
-	msg.ParseMode = "html"
-
-	client := http.Client{} 
-	res, err := client.Get("https://shark-app-wrcei.ondigitalocean.app/api/events") 
-	if err != nil { 
-		return err
-	} 
-
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil { 
-		return err
-	} 
-
-	events := []Event{}
-
-	err = json.Unmarshal(body, &events)
-	if err != nil { 
-		return err
-	} 
-
-	msg.ParseMode = "html"
-
-	const regex = `<.*?>`
-
-	eventsList := ""
-	
-	for _, e := range events {
-		eventsList += fmt.Sprintf("%s %s <a href='https://lettersandnumbers.am/events/%s'>регистрация</a> \n\n", e.Date, stripHtmlRegex(e.Description, regex), e.Id)
-	}
-	
-	if args.Storage.Language == Languages[0].Lang {
-		// msg.Text = "We have a large number of different events, we publish announcements of events on our social networks: <a href='https://www.instagram.com/lan_yerevan/'>Instagram</a> and <a href='https://t.me/lan_yerevan'>Telegram</a>. Subscribe to keep up to date with cool events. An up-to-date list of events and reservations is maintained via <a href='https://lettersandnumbers.am/events'>site</a>"
-		msg.Text = "We have a large number of different events, we publish announcements of events on our social networks: <a href='https://www.instagram.com/lan_yerevan/'>Instagram</a> and <a href='https://t.me/lan_yerevan'>Telegram</a>. The list of events is available below ⬇️"
-	} else if args.Storage.Language == Languages[1].Lang {
-		// msg.Text = "У нас проходит большое количество разнообразных мероприятий, анонсы событий мы публикуем в наших социальных сетях: <a href='https://www.instagram.com/lan_yerevan/'>Instagram</a> и <a href='https://t.me/lan_yerevan'>Telegram</a>. Подписывайтесь, чтобы быть в курсе классных событий 🎉. Актуальный список мероприятий и бронирование ведется через <a href='https://lettersandnumbers.am/events'>сайт</a>"
-		msg.Text = "У нас проходит большое количество разнообразных мероприятий, анонсы событий мы публикуем в наших социальных сетях: <a href='https://www.instagram.com/lan_yerevan/'>Instagram</a> и <a href='https://t.me/lan_yerevan'>Telegram</a>. Подписывайтесь, чтобы быть в курсе классных событий 🎉. Ниже можно ознакомиться со списком мероприятий ⬇️"
-	}
-
-	args.Storage.CurrentCommand = ""
-
-	msg.ParseMode = "html"
-
-	_, err = bot.Send(msg)
-
-	msg.Text = eventsList
-
-	_, err = bot.Send(msg)
+	resp, err := http.Get("https://shark-app-wrcei.ondigitalocean.app/api/events")
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
-		
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var rawEvents []types.Event
+	if err := json.Unmarshal(body, &rawEvents); err != nil {
+		return err
+	}
+
+	var events []types.Event
+	for _, e := range rawEvents {
+		if !e.ShowForm {
+			continue
+		}
+		if _, err := parseEventDate(e.Date); err != nil {
+			continue
+		}
+		events = append(events, e)
+	}
+
+	sort.Slice(events, func(i, j int) bool {
+		dateI, _ := parseEventDate(events[i].Date)
+		dateJ, _ := parseEventDate(events[j].Date)
+		return dateI.Before(dateJ)
+	})
+
+	if len(events) > 5 {
+		events = events[:5]
+	}
+
+	// Вводное сообщение
+	intro := tgbotapi.NewMessage(chatID, p.Sprintf("events_intro"))
+	intro.ParseMode = "HTML"
+	if _, err := bot.Send(intro); err != nil {
+		return err
+	}
+
+	// Список мероприятий
+	var sb strings.Builder
+	for _, e := range events {
+		description := stripHTML(e.Description)
+		sb.WriteString(p.Sprintf("event_item", e.Date, description, e.Id))
+	}
+
+	state.CurrentCommand = ""
+
+	list := tgbotapi.NewMessage(chatID, sb.String())
+	list.ParseMode = "HTML"
+
+	_, err = bot.Send(list)
 	return err
 }

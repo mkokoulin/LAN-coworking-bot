@@ -5,20 +5,17 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/locales"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
-func Printout(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+func PrintoutCommand(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, state *types.ChatStorage) error {
+	p := locales.Printer(state.Language)
 
-	if args.Storage.Language == Languages[0].Lang {
-		msg.Text = "Send the documents for printing to the account @lan_yerevan (administrator) and check with him the cost of the service"
-	} else if args.Storage.Language == Languages[1].Lang {
-		msg.Text = "Отправьте документы для распечатки в аккаунт @lan_yerevan (администратору) и уточните у него стоимость услуги"
-	}
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, p.Sprintf("printout_info"))
 
-	args.Storage.CurrentCommand = ""
+	state.CurrentCommand = ""
 
 	_, err := bot.Send(msg)
-		
 	return err
 }

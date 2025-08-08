@@ -11,94 +11,78 @@ import (
 )
 
 type Config struct {
-	Scope string `env:"SCOPE" json:"SCOPE"`
-	TelegramToken string `env:"TELEGRAM_TOKEN" json:"TELEGRAM_TOKEN"`
-	CoworkersSpreadsheetId string `env:"COWORKERS_SPREADSHEET_ID" json:"COWORKERS_SPREADSHEET_ID"`
-	CoworkersReadRange string `env:"COWORKERS_READ_RANGE" json:"COWORKERS_READ_RANGE"`
-	GoogleCloudConfig services.GoogleCloudConfig `env:"GOOGLE_CLOUD_CONFIG" json:"GOOGLE_CLOUD_CONFIG"`
-	GuestWifiPassword string `env:"GUEST_WIFI_PASSWORD" json:"GUEST_WIFI_PASSWORD"`
-	CoworkingWifiPassword string `env:"COWORKING_WIFI_PASSWORD" json:"COWORKING_WIFI_PASSWORD"`
-	AdminChatId int64 `env:"ADMIN_CHAT_ID" json:"ADMIN_CHAT_ID"`
-	BotLogsReadRange string `env:"BOT_LOGS_READ_RANGE" json:"BOT_LOGS_READ_RANGE"`
-	GuestsReadRange string `env:"GUESTS_READ_RANGE" json:"GUESTS_READ_RANGE"`
+	Scope                  string                         `env:"SCOPE" json:"SCOPE"`
+	TelegramToken          string                         `env:"TELEGRAM_TOKEN" json:"TELEGRAM_TOKEN"`
+	CoworkersSpreadsheetId string                         `env:"COWORKERS_SPREADSHEET_ID" json:"COWORKERS_SPREADSHEET_ID"`
+	CoworkersReadRange     string                         `env:"COWORKERS_READ_RANGE" json:"COWORKERS_READ_RANGE"`
+	GoogleCloudConfig      services.GoogleCloudConfig     `env:"GOOGLE_CLOUD_CONFIG" json:"GOOGLE_CLOUD_CONFIG"`
+	GuestWifiPassword      string                         `env:"GUEST_WIFI_PASSWORD" json:"GUEST_WIFI_PASSWORD"`
+	CoworkingWifiPassword  string                         `env:"COWORKING_WIFI_PASSWORD" json:"COWORKING_WIFI_PASSWORD"`
+	AdminChatId            int64                          `env:"ADMIN_CHAT_ID" json:"ADMIN_CHAT_ID"`
+	BotLogsReadRange       string                         `env:"BOT_LOGS_READ_RANGE" json:"BOT_LOGS_READ_RANGE"`
+	GuestsReadRange        string                         `env:"GUESTS_READ_RANGE" json:"GUESTS_READ_RANGE"`
+	MongoURI               string                         `env:"MONGO_URI" json:"MONGO_URI"`
 }
 
 func New() (*Config, error) {
+	get := func(key string) (string, error) {
+		val := os.Getenv(key)
+		if val == "" {
+			return "", fmt.Errorf("environment variable %s is not set or empty", key)
+		}
+		log.Printf("[LAN-COWORKING-BOT] %s: %s", key, val)
+		return val, nil
+	}
+
 	cfg := Config{}
 
-	cfg.Scope = os.Getenv("SCOPE")
-	if cfg.Scope == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "SCOPE")
-	}
-	log.Default().Printf("[LAN-COWORKING-BOT] SCOPE: %v", cfg.Scope)
+	var err error
 
-	cfg.TelegramToken = os.Getenv("TELEGRAM_TOKEN")
-	if cfg.TelegramToken == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "TELEGRAM_TOKEN")
+	if cfg.Scope, err = get("SCOPE"); err != nil {
+		return nil, err
 	}
-	log.Default().Printf("[LAN-COWORKING-BOT] TELEGRAM_TOKEN: %v", cfg.TelegramToken)
-
-	cfg.CoworkersSpreadsheetId = os.Getenv("COWORKERS_SPREADSHEET_ID")
-	if cfg.CoworkersSpreadsheetId == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "COWORKERS_SPREADSHEET_ID")
+	if cfg.TelegramToken, err = get("TELEGRAM_TOKEN"); err != nil {
+		return nil, err
 	}
-	log.Default().Printf("[LAN-COWORKING-BOT] COWORKERS_SPREADSHEET_ID: %v", cfg.CoworkersSpreadsheetId)
-
-	cfg.CoworkersReadRange = os.Getenv("COWORKERS_READ_RANGE")
-	if cfg.CoworkersReadRange == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "COWORKERS_READ_RANGE")
+	if cfg.CoworkersSpreadsheetId, err = get("COWORKERS_SPREADSHEET_ID"); err != nil {
+		return nil, err
 	}
-	log.Default().Printf("[LAN-COWORKING-BOT] COWORKERS_READ_RANGE: %v", cfg.CoworkersReadRange)
-
-	googleCloudConfigString := os.Getenv("GOOGLE_CLOUD_CONFIG")
-	if googleCloudConfigString == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "GOOGLE_CLOUD_CONFIG")
+	if cfg.CoworkersReadRange, err = get("COWORKERS_READ_RANGE"); err != nil {
+		return nil, err
 	}
-
-	var googleCloudConfig services.GoogleCloudConfig
-	if err := json.Unmarshal([]byte(googleCloudConfigString), &googleCloudConfig); err != nil {
-		return nil, fmt.Errorf("error parsing JSON: %v", err)
+	if cfg.GuestWifiPassword, err = get("GUEST_WIFI_PASSWORD"); err != nil {
+		return nil, err
 	}
-	log.Default().Printf("[LAN-TG-BOT] GOOGLE_CLOUD_CONFIG: %v", cfg.GoogleCloudConfig)
-	cfg.GoogleCloudConfig = googleCloudConfig;
-
-	cfg.GuestWifiPassword = os.Getenv("GUEST_WIFI_PASSWORD")
-	if cfg.GuestWifiPassword == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "GUEST_WIFI_PASSWORD")
+	if cfg.CoworkingWifiPassword, err = get("COWORKING_WIFI_PASSWORD"); err != nil {
+		return nil, err
 	}
-	log.Default().Printf("[LAN-COWORKING-BOT] GUEST_WIFI_PASSWORD: %v", cfg.GuestWifiPassword)
-
-	cfg.CoworkingWifiPassword = os.Getenv("COWORKING_WIFI_PASSWORD")
-	if cfg.CoworkingWifiPassword == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "COWORKING_WIFI_PASSWORD")
+	if cfg.BotLogsReadRange, err = get("BOT_LOGS_READ_RANGE"); err != nil {
+		return nil, err
 	}
-	log.Default().Printf("[LAN-COWORKING-BOT] COWORKING_WIFI_PASSWORD: %v", cfg.CoworkingWifiPassword)
-
-	adminChatIdString := os.Getenv("ADMIN_CHAT_ID")
-	if adminChatIdString == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "ADMIN_CHAT_ID")
+	if cfg.GuestsReadRange, err = get("GUESTS_READ_RANGE"); err != nil {
+		return nil, err
+	}
+	if cfg.MongoURI, err = get("MONGO_URI"); err != nil {
+		return nil, err
 	}
 
-	i, err := strconv.Atoi(adminChatIdString)
-    if err != nil {
-        return nil, fmt.Errorf("error parsing int: %v", err)
-    }
-
-	cfg.AdminChatId = int64(i)
-
-	log.Default().Printf("[LAN-COWORKING-BOT] ADMIN_CHAT_ID: %v", cfg.AdminChatId)
-
-	cfg.BotLogsReadRange = os.Getenv("BOT_LOGS_READ_RANGE")
-	if cfg.BotLogsReadRange == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "BOT_LOGS_READ_RANGE")
+	adminID, err := get("ADMIN_CHAT_ID")
+	if err != nil {
+		return nil, err
 	}
-	log.Default().Printf("[LAN-COWORKING-BOT] BOT_LOGS_READ_RANGE: %v", cfg.BotLogsReadRange)
-
-	cfg.GuestsReadRange = os.Getenv("GUESTS_READ_RANGE")
-	if cfg.GuestsReadRange == "" {
-		return nil, fmt.Errorf("environment variable %v is not set or empty", "GUESTS_READ_RANGE")
+	numID, err := strconv.ParseInt(adminID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ADMIN_CHAT_ID: %w", err)
 	}
-	log.Default().Printf("[LAN-COWORKING-BOT] GUESTS_READ_RANGE: %v", cfg.GuestsReadRange)
+	cfg.AdminChatId = numID
+
+	gcfg, err := get("GOOGLE_CLOUD_CONFIG")
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(gcfg), &cfg.GoogleCloudConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse GOOGLE_CLOUD_CONFIG: %w", err)
+	}
 
 	return &cfg, nil
 }

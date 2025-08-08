@@ -2,75 +2,47 @@ package commands
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/locales"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
-type L struct {
-	Lang string
-	Desc string
+var LanguageOptions = []types.LangOption{
+	{Code: "en", Label: "🇺🇸 English"},
+	{Code: "ru", Label: "🇷🇺 Русский"},
 }
 
-var Languages = []L{
-	{
-		Lang: "🇺🇸 English",
-		Desc: "Choose the interface language",
-	},
-	{
-		Lang: "🇷🇺 Русский",
-		Desc: "Выберите язык интерфейса",
-	},
-}
+func LanguageCommand(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, state *types.ChatStorage) error {
+	userInput := update.Message.Text
+	chatID := update.Message.Chat.ID
 
-func Language(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+	// 1. Обработка выбора языка
+	for _, opt := range LanguageOptions {
+		if userInput == opt.Label {
+			state.Language = opt.Code
+			state.CurrentCommand = ""
 
-	if update.Message.Text != "" {
-		for _, v := range Languages {
-			if update.Message.Text == v.Lang {
-				args.Storage.Language = v.Lang
-				
-				args.Storage.CurrentCommand = ""
+			p := locales.Printer(opt.Code)
+			confirm := tgbotapi.NewMessage(chatID, p.Sprintf("language_selected", opt.Label))
+			confirm.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{RemoveKeyboard: true}
 
-				if v.Lang == Languages[0].Lang {
-					msg.Text = fmt.Sprintf("Selected %s", v.Lang)
-				} else if v.Lang == Languages[1].Lang {
-					msg.Text = fmt.Sprintf("Выбран %s", v.Lang)
-				}
-
-				msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
-					RemoveKeyboard: true,
-					Selective: false,
-				}
-
-				_, err := bot.Send(msg)
-
-				return err
-			}
+			_, err := bot.Send(confirm)	
+			return err
 		}
-	} else {
-		return nil
 	}
 
-	descs := []string {}
-	
-	for _, v := range Languages {
-		descs = append(descs, v.Desc)
+	// 2. Показываем выбор языка
+	var buttons []tgbotapi.KeyboardButton
+	for _, opt := range LanguageOptions {
+		buttons = append(buttons, tgbotapi.NewKeyboardButton(opt.Label))
 	}
 
-	msg.Text = fmt.Sprintf("%v 🌎", strings.Join(descs, " / "))
-	
-	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("🇺🇸 English"),
-			tgbotapi.NewKeyboardButton("🇷🇺 Русский"),
-		),
-	)	
-	
+	p := locales.Printer(state.Language)
+	msg := tgbotapi.NewMessage(chatID, p.Sprintf("language_prompt"))
+	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(buttons)
+
 	_, err := bot.Send(msg)
-	
 	return err
 }

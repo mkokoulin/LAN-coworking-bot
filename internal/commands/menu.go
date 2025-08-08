@@ -7,34 +7,33 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
-func Menu(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+func MenuCommand(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, state *types.ChatStorage) error {
+	var fileName string
 
-	msg.ParseMode = "html"
-
-	var pdf string
-
-	if args.Storage.Language == Languages[0].Lang {
-		pdf = "menu_eng"
-	} else if args.Storage.Language == Languages[1].Lang {
-		pdf = "menu_rus"
+	switch state.Language {
+	case "en":
+		fileName = "menu_eng"
+	case "ru":
+		fileName = "menu_rus"
+	default:
+		fileName = "menu_eng"
 	}
-	
-	pdfFile, err := os.Open(fmt.Sprintf("internal/assets/%s.pdf", pdf))
+
+	path := fmt.Sprintf("internal/assets/%s.pdf", fileName)
+	file, err := os.Open(path)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to open menu file: %w", err)
 	}
+	defer file.Close()
 
-	reader := tgbotapi.FileReader{ Name: "menu.pdf", Reader: pdfFile }
+	doc := tgbotapi.NewDocument(update.Message.Chat.ID, tgbotapi.FileReader{
+		Name:   "menu.pdf",
+		Reader: file,
+	})
 
-	file := tgbotapi.NewDocument(update.Message.Chat.ID, reader)
-
-	_, err = bot.Send(file)
-	if err != nil {
-		fmt.Println(err)
-	}
-		
+	_, err = bot.Send(doc)
 	return err
 }

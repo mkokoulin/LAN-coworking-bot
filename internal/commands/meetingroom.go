@@ -3,50 +3,44 @@ package commands
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/locales"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
-func Meetingroom(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+func MeetingroomCommand(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, state *types.ChatStorage) error {
+	p := locales.Printer(state.Language)
+	chatID := update.Message.Chat.ID
+	text := strings.TrimSpace(update.Message.Text)
 
-	if !args.Storage.IsBookingProcess {	
-		if args.Storage.Language == Languages[0].Lang {
-			msg.Text = "Write the date and time interval for which you want to book a meeting room in the format yyyy-mm-dd hh:mm - hh:mm"
-		} else if args.Storage.Language == Languages[1].Lang {
-			msg.Text = "Напишите дату и интервал времени, на который вы хотите забронировать комнату для переговоров в формате yyyy-mm-dd hh:mm - hh:mm"
-		}
-		
-		args.Storage.IsBookingProcess = true
-
+	// Первый шаг: просим ввести дату и время
+	if !state.IsBookingProcess {
+		state.IsBookingProcess = true
+		msg := tgbotapi.NewMessage(chatID, p.Sprintf("meeting_prompt"))
 		_, err := bot.Send(msg)
-			
 		return err
-	} else {
-		if update.Message.Text == "" {
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-			msg.Text = "Сообщение не может быть пустым"
-			bot.Send(msg)
-			
-			return nil
-		}
-	
-		msgToAdmin := tgbotapi.NewMessage(cfg.AdminChatId, fmt.Sprintf("Пользователь @%s просит забронировать переговорку - %s", update.Message.Chat.UserName, update.Message.Text))
-		bot.Send(msgToAdmin)
-
-		if args.Storage.Language == Languages[0].Lang {
-			msg.Text = "Our administrator will contact you soon🧑‍💼"
-		} else if args.Storage.Language == Languages[1].Lang {
-			msg.Text = "В ближайшее время с вами свяжется наш администратор 🧑‍💼"
-		}
-		
-		bot.Send(msg)
-
-		args.Storage.IsBookingProcess = false
-
-		args.Storage.CurrentCommand = ""
 	}
+
+	// Второй шаг: проверяем сообщение
+	if text == "" {
+		msg := tgbotapi.NewMessage(chatID, p.Sprintf("meeting_empty"))
+		_, _ = bot.Send(msg)
+		return nil
+	}
+
+	// Уведомляем администратора
+	adminMsg := fmt.Sprintf("Пользователь @%s просит забронировать переговорку - %s", update.Message.Chat.UserName, text)
+	_, _ = bot.Send(tgbotapi.NewMessage(cfg.AdminChatId, adminMsg))
+
+	// Подтверждение пользователю
+	confirm := tgbotapi.NewMessage(chatID, p.Sprintf("meeting_confirm"))
+	_, _ = bot.Send(confirm)
+
+	state.IsBookingProcess = false
+	state.CurrentCommand = ""
 
 	return nil
 }

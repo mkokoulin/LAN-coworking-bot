@@ -2,148 +2,82 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/locales"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
-func Wifi(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, args CommandsHandlerArgs) error {
+func WifiCommand(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, state *types.ChatStorage) error {
+	p := locales.Printer(state.Language)
+	text := strings.ToLower(update.Message.Text)
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-	if !args.Storage.IsWifiProcess {
-		if args.Storage.Language == Languages[0].Lang {
-			msg.Text = "Select the network options below: guest / coworking"
+	send := func(text string, markup any) error {
+		msg.Text = text
+		msg.ReplyMarkup = markup
+		_, err := bot.Send(msg)
+		return err
+	}
 
-			msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
+	removeKeyboard := tgbotapi.ReplyKeyboardRemove{RemoveKeyboard: true}
+
+	// Шаг 1: выбор типа сети
+	if !state.IsWifiProcess {
+		state.IsWifiProcess = true
+		return send(
+			p.Sprintf("select_network"),
+			tgbotapi.NewReplyKeyboard(
 				tgbotapi.NewKeyboardButtonRow(
 					tgbotapi.NewKeyboardButton("guest"),
 					tgbotapi.NewKeyboardButton("coworking"),
 				),
-			)
-		} else if args.Storage.Language == Languages[1].Lang {
-			msg.Text = "Выберите ниже варианты сети: гостевой / коворкинг"
-	
-			msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-				tgbotapi.NewKeyboardButtonRow(
-					tgbotapi.NewKeyboardButton("гостевой"),
-					tgbotapi.NewKeyboardButton("коворкинг"),
-				),
-			)
-		}
-
-		args.Storage.IsWifiProcess = true
-		
-		_, err := bot.Send(msg)
-		return err
+			),
+		)
 	}
-		
 
-	if !args.Storage.IsAwaitingConfirmation {
-		if update.Message.Text == "guest" || update.Message.Text == "гостевой" {
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-			
-			if args.Storage.Language == Languages[0].Lang {
-				msg.Text = fmt.Sprintf("L&N_guest network password %s", cfg.GuestWifiPassword)
-			} else if args.Storage.Language == Languages[1].Lang {
-				msg.Text = fmt.Sprintf("сеть L&N_guest пароль %s", cfg.GuestWifiPassword)
-			}
+	// Шаг 2: гостевая сеть
+	if !state.IsAwaitingConfirmation && (text == "guest" || text == "гостевой") {
+		state.IsWifiProcess = false
+		state.CurrentCommand = ""
+		return send(p.Sprintf("wifi_guest", cfg.GuestWifiPassword), removeKeyboard)
+	}
 
-			args.Storage.CurrentCommand = ""
-
-			args.Storage.IsWifiProcess = false
-
-			msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
-				RemoveKeyboard: true,
-				Selective: false,
-			}
-
-			_, err := bot.Send(msg)
-			return err
+	// Шаг 3: коворкинг — авторизован
+	if !state.IsAwaitingConfirmation && (text == "coworking" || text == "коворкинг") {
+		if state.IsAuthorized {
+			state.IsWifiProcess = false
+			state.CurrentCommand = ""
+			return send(p.Sprintf("wifi_coworking", cfg.CoworkingWifiPassword), removeKeyboard)
 		}
 
-		if update.Message.Text == "coworking" || update.Message.Text == "коворкинг" {
-			if args.Storage.IsAuthorized {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+		state.IsAwaitingConfirmation = true
+		return send(p.Sprintf("ask_confirmation"), nil)
+	}
 
-				if args.Storage.Language == Languages[0].Lang {
-					msg.Text = fmt.Sprintf("L&N network password %s", cfg.CoworkingWifiPassword)
-				} else if args.Storage.Language == Languages[1].Lang {
-					msg.Text = fmt.Sprintf("сеть L&N пароль %s", cfg.CoworkingWifiPassword)
-				}
+	// Шаг 4: проверка кода от администратора
+	if state.IsAwaitingConfirmation {
+		secrets, err := services.CoworkersSheets.GetUnusedSecrets(ctx)
+		if err != nil {
+			log.Fatalf("fatal error %v", err)
+		}
 
-				args.Storage.CurrentCommand = ""
-
-				args.Storage.IsWifiProcess = false
-
-				msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
-					RemoveKeyboard: true,
-					Selective: false,
-				}
-				
-				_, err := bot.Send(msg)
-				return err
-			}
-			
-				args.Storage.IsAwaitingConfirmation = true
-
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-
-				if args.Storage.Language == Languages[0].Lang {
-					msg.Text = "Enter the number you received from the administrator"
-				} else if args.Storage.Language == Languages[1].Lang {
-					msg.Text = "Введите номер, полученный от администратора"
-				}
-				
-				_, err := bot.Send(msg)
-				return err
-			}
-		} else {
-			secrets, err := args.CoworkersSheets.GetUnusedSecrets(ctx)
-			if err != nil {
-				log.Fatalf("fatal error %v", err)
-			}
-
-			for _, s := range secrets {
-				if update.Message.Text == s {
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-					
-					if args.Storage.Language == Languages[0].Lang {
-						msg.Text = fmt.Sprintf("L&N network password %s", cfg.CoworkingWifiPassword)
-					} else if args.Storage.Language == Languages[1].Lang {
-						msg.Text = fmt.Sprintf("сеть L&N пароль %s", cfg.CoworkingWifiPassword)
-					}
-
-					args.Storage.CurrentCommand = ""
-					
-					args.Storage.IsWifiProcess = false
-					
-					msg.ReplyMarkup = tgbotapi.ReplyKeyboardRemove{
-						RemoveKeyboard: true,
-						Selective: false,
-					}
-
-					args.Storage.IsAwaitingConfirmation = false
-					args.Storage.IsAuthorized = true
-
-					_, err := bot.Send(msg)
-					return err
-				}
-			}
-
-			if args.Storage.IsAwaitingConfirmation {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-
-				if args.Storage.Language == Languages[0].Lang {
-					msg.Text = "The password is incorrect, check with the administrator"
-				} else if args.Storage.Language == Languages[1].Lang {
-					msg.Text = "Пароль неверный, уточните у администратора"
-				}
-				
-				_, err := bot.Send(msg)
-				return err
+		for _, s := range secrets {
+			if text == s {
+				state.IsWifiProcess = false
+				state.IsAwaitingConfirmation = false
+				state.IsAuthorized = true
+				state.CurrentCommand = ""
+				return send(p.Sprintf("wifi_coworking", cfg.CoworkingWifiPassword), removeKeyboard)
 			}
 		}
+
+		// Неверный пароль
+		return send(p.Sprintf("wrong_secret"), nil)
+	}
+
 	return nil
 }
