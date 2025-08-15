@@ -2,11 +2,9 @@ package flow
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/big"
 	"sort"
 	"strconv"
 	"strings"
@@ -732,31 +730,6 @@ func done(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Se
 	return stepDone, nil
 }
 
-// ---------- генератор номера ----------
-// var catTitles = []string{"Кот", "Котэ", "Господин Кот", "Сэр Мур"}
-// var catNames  = []string{"Барсик", "Сметана", "Кекс", "Пельмень", "Жмых", "Пончик", "Граф Лапкин", "Мурчестер", "Васаби", "Шпрот"}
-// var catColors = []string{"рыжий", "серебристо-полосатый", "трёхцветный", "чёрный как эспрессо", "снежный", "дымчатый", "в горошек (почти)"}
-// var catTraits = []string{"охотник на коробки", "надзиратель за кружками", "специалист по колбасе", "мурчательный", "шуршолог", "прыг-скок", "дример на подоконнике"}
-// var tokenRunes = []rune("23456789ABCDEFGHJKLMNPQRSTUVWXYZ")
-
-func randInt(n int64) int { x, _ := rand.Int(rand.Reader, big.NewInt(n)); return int(x.Int64()) }
-func pick[T any](arr []T) T { return arr[randInt(int64(len(arr)))] }
-// func shortToken(n int) string { b := make([]rune, n); for i := range b { b[i] = tokenRunes[randInt(int64(len(tokenRunes)))] }; return string(b) }
-// func generateCatOrderID() string {
-// 	title := pick(catTitles); name := pick(catNames); color := pick(catColors); trait := pick(catTraits); code := shortToken(4)
-// 	return fmt.Sprintf("%s %s — %s, %s • %s", title, name, color, trait, code)
-// }
-
-// ---------- клавиатуры ----------
-func itemKeyboard(d botengine.Deps, s *types.Session, id string, qty int) tgbotapi.InlineKeyboardMarkup {
-	p := d.Printer(s.Lang)
-	return ui.Inline(ui.Row(
-		ui.Cb("−", "bar:rem:"+id),
-		ui.Cb(fmt.Sprintf(p.Sprintf("bar_in_cart_label"), qty), "bar:noop"),
-		ui.Cb("+", "bar:add:"+id),
-	))
-}
-
 func cartKeyboard(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyboardMarkup {
 	p := d.Printer(s.Lang)
 	items := cartSnapshot(s)
@@ -773,9 +746,18 @@ func cartKeyboard(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyboardMar
 }
 
 func confirmKeyboard(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyboardMarkup {
+	if s == nil {
+		// Provide a fallback language if session is nil
+		p := d.Printer("ru")
+		var rows [][]tgbotapi.InlineKeyboardButton
+		rows = append(rows, ui.Row(ui.Cb(p.Sprintf("bar_btn_confirm"), "bar:confirm")))
+		rows = append(rows, ui.Row(ui.Cb(p.Sprintf("bar_btn_add_note"), "bar:notes")))
+		rows = append(rows, ui.Row(ui.Cb(p.Sprintf("bar_btn_cancel"), "bar:cancel")))
+		return ui.Inline(rows...)
+	}
 	p := d.Printer(s.Lang)
 	hasNotes := false
-	if s != nil && s.Data != nil {
+	if s.Data != nil {
 		if n, ok := s.Data[keyNotes]; ok && strings.TrimSpace(fmt.Sprint(n)) != "" {
 			hasNotes = true
 		}
