@@ -8,126 +8,153 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
 
-type GuestsSheetService struct {
-	spreadsheetId string
-	readRange string
-	srv *sheets.Service
+type guestsSheetService struct {
+	spreadsheetID string
+	readRange     string
+	srv           *sheets.Service
 }
 
-type Guest struct {
-	Telegram string `json:"telegram" mapstructure:"telegram"`
-	FirstName string `json:"firstName" mapstructure:"firstName"`
-	LastName string `json:"lastName" mapstructure:"lastName"`
-	Datetime string `json:"datetime" mapstructure:"datetime"`
-}
-
-func NewGuestSheets(ctx context.Context, googleClient *http.Client, spreadsheetId, readRange string) (*GuestsSheetService, error) {
+// Конструктор возвращает ИНТЕРФЕЙС (не *интерфейс).
+func NewGuestSheets(ctx context.Context, googleClient *http.Client, spreadsheetID, readRange string) (types.GuestSheetsService, error) {
 	srv, err := sheets.NewService(ctx, option.WithHTTPClient(googleClient))
 	if err != nil {
-		return nil, fmt.Errorf("%v", err)
+		return nil, fmt.Errorf("sheets.NewService: %w", err)
 	}
-
-	return &GuestsSheetService{
-		spreadsheetId,
-		readRange,
-		srv,
+	return &guestsSheetService{
+		spreadsheetID: spreadsheetID,
+		readRange:     readRange,
+		srv:           srv,
 	}, nil
 }
 
-func (ESS *GuestsSheetService) GetGuests(ctx context.Context) ([]Guest, error) {
-	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, "guests!A1:Z10000").Do()
-	if err != nil || res.HTTPStatusCode != 200 {
-		return nil, fmt.Errorf("%v", err)
+// GetGuests — читает гостей из листа guests!A1:Z10000, мапит по заголовкам.
+func (s *guestsSheetService) GetGuests(ctx context.Context) ([]types.Guest, error) {
+	const rng = "guests!A1:Z10000"
+
+	res, err := s.srv.Spreadsheets.Values.Get(s.spreadsheetID, rng).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("sheets get %s: %w", rng, err)
+	}
+	if res.HTTPStatusCode != 200 {
+		return nil, fmt.Errorf("sheets get %s: http %d", rng, res.HTTPStatusCode)
 	}
 
-	guests := []Guest{}
+	var (
+		guests []types.Guest
+		header []string
+	)
 
-	header := []string{}
-
-	for i, val := range res.Values {
+	for i, row := range res.Values {
 		if i == 0 {
-			for _, v := range val {
-				header = append(header, v.(string))
-			}
-		} else {
-			rawCoworker := map[string]string{}
-
-			for i, v := range header {
-				if len(val) - 1 < i {
-					rawCoworker[v] = ""
+			header = header[:0]
+			for _, v := range row {
+				if str, ok := v.(string); ok {
+					header = append(header, str)
 				} else {
-					rawCoworker[v] = val[i].(string)
+					header = append(header, fmt.Sprint(v))
 				}
 			}
-
-			guest := Guest{}
-
-			err := mapstructure.Decode(rawCoworker, &guest)
-			if err != nil {
-				return guests, err
-			}
-
-			guests = append(guests, guest)
+			continue
 		}
+
+		raw := map[string]string{}
+		for idx, key := range header {
+			if idx < len(row) {
+				if str, ok := row[idx].(string); ok {
+					raw[key] = str
+				} else {
+					raw[key] = fmt.Sprint(row[idx])
+				}
+			} else {
+				raw[key] = ""
+			}
+		}
+
+		var g types.Guest
+		if err := mapstructure.Decode(raw, &g); err != nil {
+			return guests, fmt.Errorf("decode guest: %w", err)
+		}
+		guests = append(guests, g)
 	}
 
 	return guests, nil
 }
 
+// GetGuest — ищет гостя по Telegram.
+func (s *guestsSheetService) GetGuest(ctx context.Context, telegram string) (types.Guest, error) {
+	var zero types.Guest
 
-func (ESS *GuestsSheetService) GetGuest(ctx context.Context, guest string) (Guest, error) {
-	g := Guest{}
-
-	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, ESS.readRange).Do()
-	if err != nil || res.HTTPStatusCode != 200 {
-		return g, fmt.Errorf("%v", err)
-	}
-
-	guests, err := ESS.GetGuests(ctx)
+	guests, err := s.GetGuests(ctx)
 	if err != nil {
-		return g, fmt.Errorf("%v", err)
+		return zero, err
+	}
+	for _, g := range guests {
+	 if g.Telegram == telegram {
+			return g, nil
+		}
+	}
+	return zero, fmt.Errorf("guest not found: %s", telegram)
+}
+
+// CreateGuest — создаёт запись, если её ещё нет.
+// readRange можно передать явно; если пусто — используется s.readRange.
+func (s *guestsSheetService) CreateGuest(ctx context.Context, readRange string, guest types.Guest) error {
+	return s.addGuest(ctx, readRange, guest)
+}
+
+// AddGuest — алиас к CreateGuest для совместимости с интерфейсом.
+func (s *guestsSheetService) AddGuest(ctx context.Context, readRange string, guest types.Guest) error {
+	return s.addGuest(ctx, readRange, guest)
+}
+
+// внутренняя реализация добавления гостя
+func (s *guestsSheetService) addGuest(ctx context.Context, readRange string, guest types.Guest) error {
+	if strings.TrimSpace(readRange) == "" {
+		readRange = s.readRange
+	}
+	if strings.TrimSpace(readRange) == "" {
+		readRange = "guests!A1:Z10000"
 	}
 
-	for _, v := range guests {
-		if v.Telegram == guest {
-			g = v
-			break
+	// Не дублируем запись
+	if existing, err := s.GetGuest(ctx, guest.Telegram); err == nil {
+		if existing.FirstName == guest.FirstName &&
+			existing.LastName == guest.LastName &&
+			existing.Telegram == guest.Telegram {
+			return nil
 		}
 	}
 
-	return g, nil
-}
-
-func (ESS *GuestsSheetService) CreateGuest(ctx context.Context, readRange string, guest Guest) error {
-	g, err := ESS.GetGuest(ctx, guest.Telegram)
+	// Текущее число строк
+	res, err := s.srv.Spreadsheets.Values.Get(s.spreadsheetID, readRange).Context(ctx).Do()
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return fmt.Errorf("sheets get %s: %w", readRange, err)
+	}
+	if res.HTTPStatusCode != 200 {
+		return fmt.Errorf("sheets get %s: http %d", readRange, res.HTTPStatusCode)
 	}
 
-	newGuest := guest.FirstName + guest.LastName + guest.Telegram
-	oldGuest := g.FirstName + g.LastName + g.Telegram
-
-	if newGuest == oldGuest {
-		return nil
+	// Имя листа до '!'
+	sheet := readRange
+	if i := strings.IndexByte(readRange, '!'); i > 0 {
+		sheet = readRange[:i]
 	}
 
-	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, readRange).Do()
-	if err != nil || res.HTTPStatusCode != 200 {
-		return fmt.Errorf("%v", err)
+	// Следующая строка (минимум 2 — после шапки)
+	rowNumber := len(res.Values) + 1
+	if rowNumber < 2 {
+		rowNumber = 2
 	}
+	targetRange := fmt.Sprintf("%s!A%d:Z%d", sheet, rowNumber, rowNumber)
 
-	rowNumber := len(res.Values) + 2
-	sheet := readRange[:strings.IndexByte(readRange, '!')]
-	updateRowRange := fmt.Sprintf("%s!A%d:Z%d", sheet, rowNumber, rowNumber)
+	guest.Datetime = time.Now().Format(time.RFC3339)
 
-	now := time.Now()
-	guest.Datetime = now.Format(time.RFC3339)
-
-	row := &sheets.ValueRange{
+	values := &sheets.ValueRange{
 		Values: [][]interface{}{{
 			guest.FirstName,
 			guest.LastName,
@@ -136,10 +163,13 @@ func (ESS *GuestsSheetService) CreateGuest(ctx context.Context, readRange string
 		}},
 	}
 
-	_, err = ESS.srv.Spreadsheets.Values.Update(ESS.spreadsheetId, updateRowRange, row).ValueInputOption("USER_ENTERED").Context(ctx).Do()
+	_, err = s.srv.Spreadsheets.Values.
+		Update(s.spreadsheetID, targetRange, values).
+		ValueInputOption("USER_ENTERED").
+		Context(ctx).
+		Do()
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return fmt.Errorf("sheets update %s: %w", targetRange, err)
 	}
-
 	return nil
 }

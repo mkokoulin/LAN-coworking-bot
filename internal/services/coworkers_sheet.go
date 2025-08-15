@@ -2,153 +2,179 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/mitchellh/mapstructure"
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
-	"github.com/mitchellh/mapstructure"
 )
 
-type CoworkersSheetService struct {
-	spreadsheetId string
-	readRange string
-	srv *sheets.Service
+type coworkersSheetService struct {
+	spreadsheetID string
+	readRange     string
+	srv           *sheets.Service
 }
 
 type Coworker struct {
-	Secret string `json:"secret" mapstructure:"secret"`
+	Secret   string `json:"secret" mapstructure:"secret"`
 	Telegram string `json:"telegram" mapstructure:"telegram"`
 }
 
-func NewCoworkersSheets(ctx context.Context, googleClient *http.Client, spreadsheetId, readRange string) (*CoworkersSheetService, error) {
+// Конструктор возвращает ИНТЕРФЕЙС, не *интерфейс.
+func NewCoworkersSheets(ctx context.Context, googleClient *http.Client, spreadsheetID, readRange string) (types.CoworkersSheetsService, error) {
 	srv, err := sheets.NewService(ctx, option.WithHTTPClient(googleClient))
 	if err != nil {
-		return nil, fmt.Errorf("%v", err)
+		return nil, fmt.Errorf("sheets.NewService: %w", err)
 	}
-
-	return &CoworkersSheetService{
-		spreadsheetId,
-		readRange,
-		srv,
+	return &coworkersSheetService{
+		spreadsheetID: spreadsheetID,
+		readRange:     readRange,
+		srv:           srv,
 	}, nil
 }
 
-func (ESS *CoworkersSheetService) GetCoworkers(ctx context.Context) ([]Coworker, error) {
-	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, "master!A1:Z1000").Do()
-	if err != nil || res.HTTPStatusCode != 200 {
-		return nil, fmt.Errorf("%v", err)
+// ValidateSecret — true, если код есть среди «свободных» секретов (строка с пустым Telegram).
+func (s *coworkersSheetService) ValidateSecret(ctx context.Context, code string) (bool, error) {
+	if code == "" {
+		return false, errors.New("empty code")
+	}
+	coworkers, err := s.GetCoworkers(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, c := range coworkers {
+		if c.Secret == code && c.Telegram == "" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// GetUnusedSecrets — список всех секретов без закреплённого Telegram.
+func (s *coworkersSheetService) GetUnusedSecrets(ctx context.Context) ([]string, error) {
+	coworkers, err := s.GetCoworkers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	secrets := make([]string, 0, len(coworkers))
+	for _, c := range coworkers {
+		if c.Telegram == "" {
+			secrets = append(secrets, c.Secret)
+		}
+	}
+	return secrets, nil
+}
+
+// GetCoworkers — читает лист master!A1:Z1000 и мапит по заголовкам.
+func (s *coworkersSheetService) GetCoworkers(ctx context.Context) ([]Coworker, error) {
+	const rng = "master!A1:Z1000"
+	res, err := s.srv.Spreadsheets.Values.Get(s.spreadsheetID, rng).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("sheets get %s: %w", rng, err)
+	}
+	if res.HTTPStatusCode != 200 {
+		return nil, fmt.Errorf("sheets get %s: http %d", rng, res.HTTPStatusCode)
 	}
 
-	coworkers := []Coworker{}
+	var (
+		coworkers []Coworker
+		header    []string
+	)
 
-	header := []string{}
-
-	for i, val := range res.Values {
+	for i, row := range res.Values {
+		// строка заголовков
 		if i == 0 {
-			for _, v := range val {
-				header = append(header, v.(string))
-			}
-		} else {
-			rawCoworker := map[string]string{}
-
-			for i, v := range header {
-				fmt.Println(len(val))
-
-				if len(val) - 1 < i {
-					rawCoworker[v] = ""
+			header = header[:0]
+			for _, v := range row {
+				if s, ok := v.(string); ok {
+					header = append(header, s)
 				} else {
-					rawCoworker[v] = val[i].(string)
+					header = append(header, fmt.Sprint(v))
 				}
 			}
-
-			coworker := Coworker{}
-
-			err := mapstructure.Decode(rawCoworker, &coworker)
-			if err != nil {
-				return coworkers, err
-			}
-
-			coworkers = append(coworkers, coworker)
+			continue
 		}
+
+		// данные
+		raw := map[string]string{}
+		for idx, key := range header {
+			if idx < len(row) {
+				if str, ok := row[idx].(string); ok {
+					raw[key] = str
+				} else {
+					raw[key] = fmt.Sprint(row[idx])
+				}
+			} else {
+				raw[key] = ""
+			}
+		}
+
+		var cw Coworker
+		if err := mapstructure.Decode(raw, &cw); err != nil {
+			return coworkers, fmt.Errorf("decode coworker: %w", err)
+		}
+		coworkers = append(coworkers, cw)
 	}
 
 	return coworkers, nil
 }
 
-func (ESS *CoworkersSheetService) GetCoworker(ctx context.Context, telegram string) (Coworker, error) {
-	coworker := Coworker{}
-
-	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, ESS.readRange).Do()
-	if err != nil || res.HTTPStatusCode != 200 {
-		return coworker, fmt.Errorf("%v", err)
-	}
-
-	coworkers, err := ESS.GetCoworkers(ctx)
+// GetCoworker — ищет по username в кэше таблицы (простая фильтрация после GetCoworkers).
+func (s *coworkersSheetService) GetCoworker(ctx context.Context, telegram string) (Coworker, error) {
+	var zero Coworker
+	coworkers, err := s.GetCoworkers(ctx)
 	if err != nil {
-		return coworker, fmt.Errorf("%v", err)
+		return zero, err
+	}
+	for _, c := range coworkers {
+		if c.Telegram == telegram {
+			return c, nil
+		}
+	}
+	return zero, fmt.Errorf("coworker not found: %s", telegram)
+}
+
+// UpdateCoworker — обновляет строку (по совпадению первого столбца = secret).
+func (s *coworkersSheetService) UpdateCoworker(ctx context.Context, coworker Coworker) error {
+	readRange := "master!2:1000"
+
+	res, err := s.srv.Spreadsheets.Values.Get(s.spreadsheetID, readRange).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("sheets get %s: %w", readRange, err)
+	}
+	if res.HTTPStatusCode != 200 {
+		return fmt.Errorf("sheets get %s: http %d", readRange, res.HTTPStatusCode)
 	}
 
-	for _, v := range coworkers {
-		if v.Telegram == telegram {
-			coworker = v
+	rowNumber := 0
+	for i, row := range res.Values {
+		if len(row) > 0 && fmt.Sprint(row[0]) == coworker.Secret {
+			rowNumber = i + 2 // +2, потому что диапазон начинается со 2-й строки
 			break
 		}
 	}
-
-	return coworker, nil
-}
-
-func (ESS *CoworkersSheetService) GetUnusedSecrets(ctx context.Context) ([]string, error) {
-	secrets := []string {}
-
-	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, ESS.readRange).Do()
-	if err != nil || res.HTTPStatusCode != 200 {
-		return secrets, fmt.Errorf("%v", err)
+	if rowNumber == 0 {
+		return fmt.Errorf("row for secret not found: %s", coworker.Secret)
 	}
 
-	coworkers, err := ESS.GetCoworkers(ctx)
-	if err != nil {
-		return secrets, fmt.Errorf("%v", err)
-	}
-
-	for _, v := range coworkers {
-		if v.Telegram == "" {
-			secrets = append(secrets, v.Secret)
-		}
-	}
-
-	return secrets, nil
-}
-
-func (ESS *CoworkersSheetService) UpdateCoworker(ctx context.Context, coworker Coworker) error {
-	var rowNumber int
-	readRange := "master!2:1000" 
-
-	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, readRange).Do()
-	if err != nil || res.HTTPStatusCode != 200 {
-		return fmt.Errorf("%v", err)
-	}
-
-	for i, v := range res.Values {
-		if v[0] == coworker.Secret {
-			rowNumber = i + 2
-		}
-	}
-
-	updateRowRange := fmt.Sprintf("A%d:Z%d", rowNumber, rowNumber)
-
-	row := &sheets.ValueRange{
+	updateRange := fmt.Sprintf("A%d:Z%d", rowNumber, rowNumber)
+	values := &sheets.ValueRange{
 		Values: [][]interface{}{{
 			coworker.Secret,
 			coworker.Telegram,
 		}},
 	}
 
-	_, err = ESS.srv.Spreadsheets.Values.Update(ESS.spreadsheetId, updateRowRange, row).ValueInputOption("USER_ENTERED").Context(ctx).Do()
+	_, err = s.srv.Spreadsheets.Values.
+		Update(s.spreadsheetID, updateRange, values).
+		ValueInputOption("USER_ENTERED").
+		Context(ctx).
+		Do()
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return fmt.Errorf("sheets update %s: %w", updateRange, err)
 	}
-
 	return nil
 }

@@ -2,7 +2,6 @@ package state
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
@@ -13,7 +12,6 @@ import (
 
 type mongoManager struct {
 	collection *mongo.Collection
-	mu         sync.RWMutex
 }
 
 func NewMongo(uri, dbName, collectionName string) (Manager, error) {
@@ -24,41 +22,88 @@ func NewMongo(uri, dbName, collectionName string) (Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	collection := client.Database(dbName).Collection(collectionName)
-	return &mongoManager{collection: collection}, nil
+	return &mongoManager{collection: client.Database(dbName).Collection(collectionName)}, nil
 }
 
-func (m *mongoManager) Get(chatID int64) *types.ChatStorage {
+func (m *mongoManager) ListSubscribedChatIDs() ([]int64, error) {
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    cur, err := m.collection.Find(ctx, bson.M{"is_subscribed": true}, options.Find().SetProjection(bson.M{"_id": 1}))
+    if err != nil {
+        return nil, err
+    }
+    defer cur.Close(ctx)
+
+    var ids []int64
+    for cur.Next(ctx) {
+        var row struct {
+            ID int64 `bson:"_id"`
+        }
+        if err := cur.Decode(&row); err != nil {
+            return nil, err
+        }
+        ids = append(ids, row.ID)
+    }
+    return ids, cur.Err()
+}
+
+func (m *mongoManager) Get(chatID int64) *types.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	var result types.ChatStorage
-	err := m.collection.FindOne(ctx, bson.M{"_id": chatID}).Decode(&result)
+	var s types.Session
+	err := m.collection.FindOne(ctx, bson.M{"_id": chatID}).Decode(&s)
 	if err == mongo.ErrNoDocuments {
-		result = types.ChatStorage{}
-		m.Set(chatID, &result)
+		// Новый чистый сеанс
+		s = types.Session{
+			ChatID:        chatID,
+			Flow:      "",
+			Step:      "",
+			Lang:      "", // пускай /language спросит
+			Data:      map[string]interface{}{},
+			Attempts:  0,
+			ExpiresAt: time.Now().Add(30 * time.Minute),
+		}
+		m.Set(chatID, &s)
 	} else if err != nil {
-		return &types.ChatStorage{}
+		// В случае ошибки вернём пустой, чтобы не падать
+		s = types.Session{
+			ChatID:   chatID,
+			Data: map[string]interface{}{},
+		}
 	}
 
-	return &result
+	// safety: если нет map — создадим
+	if s.Data == nil {
+		s.Data = map[string]interface{}{}
+	}
+
+	return &s
 }
 
-func (m *mongoManager) Set(chatID int64, state *types.ChatStorage) {
+func (m *mongoManager) Set(chatID int64, s *types.Session) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	doc := bson.M{
-		"_id":                    chatID,
-		"language":              state.Language,
-		"is_authorized":          state.IsAuthorized,
-		"is_booking_process":      state.IsBookingProcess,
-		"is_wifi_process":         state.IsWifiProcess,
-		"is_awaiting_confirmation": state.IsAwaitingConfirmation,
-		"current_command":        state.CurrentCommand,
+		"_id":           chatID,
+		"flow":          s.Flow,
+		"step":          s.Step,
+		"language":      s.Lang,
+		"data":          s.Data,
+		"attempts":      s.Attempts,
+		"expires_at":    s.ExpiresAt,
+		"is_authorized": s.IsAuthorized,
+		"is_subscribed": s.IsSubscribed,
 	}
-	_, _ = m.collection.UpdateByID(ctx, chatID, bson.M{"$set": doc}, options.Update().SetUpsert(true))
+
+	_, _ = m.collection.UpdateByID(
+		ctx,
+		chatID,
+		bson.M{"$set": doc},
+		options.Update().SetUpsert(true),
+	)
 }
 
 func (m *mongoManager) Delete(chatID int64) {

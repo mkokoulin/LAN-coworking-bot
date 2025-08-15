@@ -7,49 +7,63 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
 
-type BotLogsSheetService struct {
-	spreadsheetId string
+type botLogsSheetService struct {
+	spreadsheetID string
 	readRange     string
 	srv           *sheets.Service
 }
 
-type BotLog struct {
-	Telegram string `json:"telegram" mapstructure:"telegram"`
-	Command  string `json:"command" mapstructure:"command"`
-	Datetime string `json:"datetime" mapstructure:"datetime"`
-}
-
-func NewBotLogsSheets(ctx context.Context, googleClient *http.Client, spreadsheetId, readRange string) (*BotLogsSheetService, error) {
+// Конструктор возвращает ИНТЕРФЕЙС, а не *интерфейс.
+func NewBotLogsSheets(ctx context.Context, googleClient *http.Client, spreadsheetID, readRange string) (types.BotLogsSheetsService, error) {
 	srv, err := sheets.NewService(ctx, option.WithHTTPClient(googleClient))
 	if err != nil {
-		return nil, fmt.Errorf("%v", err)
+		return nil, fmt.Errorf("sheets.NewService: %w", err)
 	}
-
-	return &BotLogsSheetService{
-		spreadsheetId,
-		readRange,
-		srv,
+	return &botLogsSheetService{
+		spreadsheetID: spreadsheetID,
+		readRange:     readRange,
+		srv:           srv,
 	}, nil
 }
 
-func (ESS *BotLogsSheetService) Log(ctx context.Context, readRange string, botLog BotLog) error {
-	res, err := ESS.srv.Spreadsheets.Values.Get(ESS.spreadsheetId, readRange).Do()
-	if err != nil || res.HTTPStatusCode != 200 {
-		return fmt.Errorf("%v", err)
+// Log — добавляет запись в конец диапазона.
+func (s *botLogsSheetService) Log(ctx context.Context, readRange string, botLog types.BotLog) error {
+	if strings.TrimSpace(readRange) == "" {
+		readRange = s.readRange
+	}
+	if strings.TrimSpace(readRange) == "" {
+		return fmt.Errorf("readRange is empty")
 	}
 
-	rowNumber := len(res.Values) + 2
-	sheet := readRange[:strings.IndexByte(readRange, '!')]
-	updateRowRange := fmt.Sprintf("%s!A%d:Z%d", sheet, rowNumber, rowNumber)
+	res, err := s.srv.Spreadsheets.Values.Get(s.spreadsheetID, readRange).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("sheets get %s: %w", readRange, err)
+	}
+	if res.HTTPStatusCode != 200 {
+		return fmt.Errorf("sheets get %s: http %d", readRange, res.HTTPStatusCode)
+	}
 
-	now := time.Now()
-	botLog.Datetime = now.Format(time.RFC3339)
+	// Имя листа до '!'
+	sheet := readRange
+	if i := strings.IndexByte(readRange, '!'); i > 0 {
+		sheet = readRange[:i]
+	}
 
-	row := &sheets.ValueRange{
+	// Следующая строка: после заголовка (если он есть)
+	rowNumber := len(res.Values) + 1
+	if rowNumber < 2 {
+		rowNumber = 2
+	}
+	targetRange := fmt.Sprintf("%s!A%d:Z%d", sheet, rowNumber, rowNumber)
+
+	botLog.Datetime = time.Now().Format(time.RFC3339)
+
+	values := &sheets.ValueRange{
 		Values: [][]interface{}{{
 			botLog.Telegram,
 			botLog.Command,
@@ -57,10 +71,13 @@ func (ESS *BotLogsSheetService) Log(ctx context.Context, readRange string, botLo
 		}},
 	}
 
-	_, err = ESS.srv.Spreadsheets.Values.Update(ESS.spreadsheetId, updateRowRange, row).ValueInputOption("USER_ENTERED").Context(ctx).Do()
+	_, err = s.srv.Spreadsheets.Values.
+		Update(s.spreadsheetID, targetRange, values).
+		ValueInputOption("USER_ENTERED").
+		Context(ctx).
+		Do()
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return fmt.Errorf("sheets update %s: %w", targetRange, err)
 	}
-
 	return nil
 }

@@ -5,65 +5,72 @@ import (
 	"log"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"golang.org/x/text/message"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
-	"github.com/mkokoulin/LAN-coworking-bot/internal/state"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
 type Dispatcher struct {
-	bot           *tgbotapi.BotAPI
-	cfg           *config.Config
-	services      types.Services
-	stateManager  state.Manager
-	commandRouter *CommandRouter
-	commandLogger  *state.CommandLogger
+	bot          *tgbotapi.BotAPI
+	cfg          *config.Config
+	svcs         types.Services
+	registry     *Registry
+	printerFunc  func(lang string) *message.Printer
+	// Если нужен CommandLogger — оставь поле и методы attach, но в рантайме он не обязателен
 }
 
-func (d *Dispatcher) AttachLogger(logger *state.CommandLogger) {
-	d.commandLogger = logger
-}
-
-func NewDispatcher(bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, stateManager state.Manager) *Dispatcher {
+func NewDispatcher(bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, reg *Registry) *Dispatcher {
 	return &Dispatcher{
-		bot:           bot,
-		cfg:           cfg,
-		services:      services,
-		stateManager:  stateManager,
-		commandRouter: NewCommandRouter(),
+		bot:      bot,
+		cfg:      cfg,
+		svcs:     services,
+		registry: reg,
 	}
 }
+
+func (d *Dispatcher) AttachPrinter(printer func(lang string) *message.Printer) { d.printerFunc = printer }
 
 func (d *Dispatcher) Run(ctx context.Context) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
+	u.AllowedUpdates = []string{"message", "callback_query", "my_chat_member"}
 
 	updates := d.bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message == nil {
+		// фильтр
+		if update.Message == nil && update.CallbackQuery == nil && update.MyChatMember == nil {
+			continue
+		}
+		chatID := ResolveChatID(update)
+		if chatID == 0 {
 			continue
 		}
 
-		chatID := update.Message.Chat.ID
-		state := d.stateManager.Get(chatID)
+		// 👉 берём ОДНУ и ту же сессию для чата из Registry.Store
+		sess := d.registry.Store.Get(chatID)
 
-		if update.Message.IsCommand() {
-			// state.Reset()
-			state.CurrentCommand = update.Message.Command()
-
-			if d.commandLogger != nil {
-				_ = d.commandLogger.Log(chatID, state.CurrentCommand)
-			}
+		// deps
+		deps := Deps{
+			Bot:        d.bot,
+			Cfg:        d.cfg,
+			Svcs:       d.svcs,
+			Printer:    d.printerFunc,
+			LastUpdate: update,
 		}
 
-		err := d.commandRouter.Handle(ctx, update, d.bot, d.cfg, d.servicesToArgs(), state)
-		if err != nil {
-			log.Printf("[Dispatcher] handler error: %v", err)
+		// событие
+		ev := Classify(update)
+
+		// FSM
+		if err := RunFSM(ctx, ev, d.registry, deps, sess); err != nil {
+			log.Printf("[dispatcher] fsm error: %v", err)
 		}
+
+		// 👉 сохраняем сессию после каждого апдейта
+		d.registry.Store.Save(sess)
+
+		// ⚠️ НЕ дублируем AnswerCallback — ты уже зовёшь ui.AnswerCallback в шагах
 	}
-}
-
-func (d *Dispatcher) servicesToArgs() types.Services {
-	return d.services
 }
