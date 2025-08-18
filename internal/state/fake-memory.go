@@ -2,6 +2,7 @@ package state
 
 import (
 	"sync"
+	"time"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
@@ -9,6 +10,16 @@ import (
 type inMemory struct {
 	mu   sync.RWMutex
 	data map[int64]*types.Session
+}
+
+// ListDue implements Manager.
+func (m *inMemory) ListDue(now time.Time) ([]int64, error) {
+	panic("unimplemented")
+}
+
+// SetNextDigestAt implements Manager.
+func (m *inMemory) SetNextDigestAt(chatID int64, next time.Time) error {
+	panic("unimplemented")
 }
 
 // ListSubscribedChatIDs implements Manager.

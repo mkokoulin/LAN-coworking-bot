@@ -23,6 +23,8 @@ type Config struct {
 	BotLogsReadRange       string                     `env:"BOT_LOGS_READ_RANGE" json:"BOT_LOGS_READ_RANGE"`
 	GuestsReadRange        string                     `env:"GUESTS_READ_RANGE" json:"GUESTS_READ_RANGE"`
 	MongoURI               string                     `env:"MONGO_URI" json:"MONGO_URI"`
+	MongoDB                string                     `env:"MONGO_DB" json:"MONGO_DB"`
+	MongoLocksColl         string                     `env:"MONGO_LOCKS_COLL" json:"MONGO_LOCKS_COLL"`
 
 	// Важно: используем для отправки новых заказов
 	AdminUserID   int64 `env:"ADMIN_USER_ID" json:"ADMIN_USER_ID"` // опционально
@@ -65,6 +67,8 @@ func New() (*Config, error) {
 	if cfg.BotLogsReadRange, err = get("BOT_LOGS_READ_RANGE"); err != nil { return nil, err }
 	if cfg.GuestsReadRange, err = get("GUESTS_READ_RANGE"); err != nil { return nil, err }
 	if cfg.MongoURI, err = get("MONGO_URI"); err != nil { return nil, err }
+	if cfg.MongoDB, err = get("MONGO_DB"); err != nil { return nil, err }
+	if cfg.MongoLocksColl, err = get("MONGO_LOCKS_COLL"); err != nil { return nil, err }
 
 	// AdminChatId
 	if v, err := get("ADMIN_CHAT_ID"); err != nil {

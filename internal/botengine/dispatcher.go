@@ -69,8 +69,9 @@ func (d *Dispatcher) Run(ctx context.Context) {
 		}
 
 		// 👉 сохраняем сессию после каждого апдейта
-		d.registry.Store.Save(sess)
+		d.registry.Store.Set(sess.ChatID, sess)
 
+		
 		// ⚠️ НЕ дублируем AnswerCallback — ты уже зовёшь ui.AnswerCallback в шагах
 	}
 }

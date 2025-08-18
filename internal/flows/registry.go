@@ -13,6 +13,7 @@ import (
     flowsWifi "github.com/mkokoulin/LAN-coworking-bot/internal/flows/wifi"
     flowsBar "github.com/mkokoulin/LAN-coworking-bot/internal/flows/bar"
     flowsKotolog "github.com/mkokoulin/LAN-coworking-bot/internal/flows/kotolog"
+    flowsDonation "github.com/mkokoulin/LAN-coworking-bot/internal/flows/donation"
 )
 
 func RegisterAll(reg *botengine.Registry) {
@@ -27,4 +28,5 @@ func RegisterAll(reg *botengine.Registry) {
     flowsMenu.Register(reg)
     flowsBar.Register(reg)
     flowsKotolog.Register(reg)
+    flowsDonation.Register(reg)
 }

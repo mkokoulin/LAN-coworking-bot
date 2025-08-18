@@ -6,11 +6,16 @@ import (
 )
 
 const (
-	stepBar       types.Step = "bar:show"
-	stepHandle    types.Step = "bar:handle"
-	stepAskName   types.Step = "bar:askname"
-	stepConfirm   types.Step = "bar:confirm"
-	stepDone      types.Step = "bar:done"
+	FlowBar      types.Flow = "bar"
+	stepBar      types.Step = "bar:show"
+	stepHandle   types.Step = "bar:handle"
+	stepAskName  types.Step = "bar:askname"
+	stepConfirm  types.Step = "bar:confirm"
+	stepDone     types.Step = "bar:done"
+
+	stepBarHome  types.Step = "bar:home"
+	stepAskServe types.Step = "bar:ask_serve"
+	stepAskZone  types.Step = "bar:ask_zone"
 
 	keyCart     = "order.cart"     // map[string]int
 	keyBuyer    = "order.buyer"    // string
@@ -35,47 +40,37 @@ func getMenu() []Item {
 }
 
 func Register(reg *botengine.Registry) {
-    // Шаги flow
-    reg.RegisterFlow("bar", map[types.Step]botengine.StepHandler{
-        stepBar:      prompt,
-        stepHandle:   handle,
-        stepAskName:  askName,
-        stepAskServe: askServe,
-        stepAskZone:  askZone,
-        stepConfirm:  confirm,
-        stepDone:     done,
-    })
+	reg.RegisterFlow(FlowBar, map[types.Step]botengine.StepHandler{
+		stepBar:     prompt,
+		stepHandle:  handle,
+		stepAskName: askName,
+		stepAskServe: askServe,
+		stepAskZone: askZone,
+		stepConfirm: confirm,
+		stepDone:    done,
+	})
 
-    // Вход в flow по команде
-    reg.RegisterCommand("bar", botengine.FlowEntry{Flow: "bar", Step: stepBar})
+	// Команда входа
+	reg.RegisterCommand("bar", botengine.FlowEntry{Flow: FlowBar, Step: stepBar})
 
-    // ===== Callback'и, которые должен обрабатывать stepHandle =====
-    for _, p := range []string{
-        "bar:add:",
-        "bar:rem:",
-        "bar:peek:",
-        "bar:cart",
-        "bar:rmitem:",
-        "bar:clear",
-        "bar:checkout",
-        "bar:serve:",
-        "bar:zone:",
-        "bar:noop",
+	// ВАЖНО: зарегистрировать все реально используемые префиксы
+	reg.RegisterCallbackPrefix("bar:add:",      botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
+	reg.RegisterCallbackPrefix("bar:rem:",      botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
+	reg.RegisterCallbackPrefix("bar:peek:",     botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
+	reg.RegisterCallbackPrefix("bar:noop",      botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
 
-        // ВАЖНО: кнопка из админского чата
-        "bar:done:",
-    } {
-        reg.RegisterCallbackPrefix(p, botengine.FlowEntry{Flow: "bar", Step: stepHandle})
-    }
+	reg.RegisterCallbackPrefix("bar:cart",      botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
+	reg.RegisterCallbackPrefix("bar:rmitem:",   botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
+	reg.RegisterCallbackPrefix("bar:clear",     botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
+	reg.RegisterCallbackPrefix("bar:checkout",  botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
 
-    // ===== Callback'и, когда пользователь на экране подтверждения (stepConfirm) =====
-    for _, p := range []string{
-        "bar:confirm",
-        "bar:cancel",
-        "bar:notes",
-        "bar:notes:clear",
-        "bar:notes:cancel",
-    } {
-        reg.RegisterCallbackPrefix(p, botengine.FlowEntry{Flow: "bar", Step: stepConfirm})
-    }
+	reg.RegisterCallbackPrefix("bar:serve:",    botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
+	reg.RegisterCallbackPrefix("bar:zone:",     botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
+
+	reg.RegisterCallbackPrefix("bar:confirm",   botengine.FlowEntry{Flow: FlowBar, Step: stepConfirm})
+	reg.RegisterCallbackPrefix("bar:notes",     botengine.FlowEntry{Flow: FlowBar, Step: stepConfirm})    // покрывает :clear и :cancel
+	reg.RegisterCallbackPrefix("bar:cancel",    botengine.FlowEntry{Flow: FlowBar, Step: stepConfirm})
+
+	// Кнопка «готово» из админского чата
+	reg.RegisterCallbackPrefix("bar:done:",     botengine.FlowEntry{Flow: FlowBar, Step: stepHandle})
 }

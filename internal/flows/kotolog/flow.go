@@ -24,8 +24,13 @@ func Register(reg *botengine.Registry) {
 		KotologDone: done,
 	})
 
-	// Команда /kotolog
+	// Команды
 	reg.RegisterCommand("kotolog", botengine.FlowEntry{Flow: FlowKotolog, Step: KotologHome})
-	// Все callback-и с префиксом kotolog:* ведём в этот флоу
-	reg.RegisterCallbackPrefix("kotolog:", botengine.FlowEntry{Flow: FlowKotolog, Step: KotologHome})
+	reg.RegisterCommand("cats",    botengine.FlowEntry{Flow: FlowKotolog, Step: KotologHome})
+
+	// ⬇️ ВАЖНО: конкретные префиксы вместо общего "kotolog:"
+	reg.RegisterCallbackPrefix("kotolog:home",  botengine.FlowEntry{Flow: FlowKotolog, Step: KotologHome})
+	reg.RegisterCallbackPrefix("kotolog:list:", botengine.FlowEntry{Flow: FlowKotolog, Step: KotologList})
+	reg.RegisterCallbackPrefix("kotolog:cat:",  botengine.FlowEntry{Flow: FlowKotolog, Step: KotologCat})
+	reg.RegisterCallbackPrefix("kotolog:help",  botengine.FlowEntry{Flow: FlowKotolog, Step: KotologHelp})
 }

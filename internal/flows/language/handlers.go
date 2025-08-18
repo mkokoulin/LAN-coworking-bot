@@ -43,15 +43,11 @@ func waitChoice(ctx context.Context, ev botengine.Event, d botengine.Deps, s *ty
 	p := d.Printer(s.Lang)
 	_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("language_selected", label))
 
-	// // Куда возвращаемся после выбора языка
-	// if s.PendingCmd == "" {
-	// 	s.PendingCmd = "start"
-	// }
-
-	// Сбрасываем текущий флоу, просим FSM продолжить сразу (он сам дернёт PendingCmd)
+	// Завершаем флоу без InternalContinue — чтобы не переобработать тот же callback
 	s.Flow, s.Step = "", ""
-	return botengine.InternalContinue, nil
+	return LangDone, nil
 }
+
 
 func done(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	return LangDone, nil

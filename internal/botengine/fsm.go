@@ -15,7 +15,9 @@ import (
 const InternalContinue types.Step = "__internal:continue"
 
 func RunFSM(ctx context.Context, ev Event, reg *Registry, d Deps, s *types.Session) error {
-	// небольшой лимит на внутренние "продолжить" чтобы не зациклиться
+	GuardMaybeReset(ev, reg, s)
+
+	// небольшой лимит на внутренние "продолжить", чтобы не зациклиться
 	const maxInternalIters = 5
 
 	for it := 0; it < maxInternalIters; it++ {
@@ -60,6 +62,8 @@ func RunFSM(ctx context.Context, ev Event, reg *Registry, d Deps, s *types.Sessi
 			return nil
 		}
 
+		prevFlow, prevStep := s.Flow, s.Step
+
 		// 3) Выполняем шаг
 		next, err := h(ctx, ev, d, s)
 		if err != nil {
@@ -68,23 +72,12 @@ func RunFSM(ctx context.Context, ev Event, reg *Registry, d Deps, s *types.Sessi
 
 		// 4) Обработка служебного шага — "продолжить немедленно"
 		if next == InternalContinue {
-			// Если flow положил PendingCmd — синтезируем команду и пере-резолвим вход
-			if s.PendingCmd != "" {
-				cmd := s.PendingCmd
-				s.PendingCmd = ""
-				// очистим текущий контекст, чтобы ResolveEntry сработал как вход
-				s.Flow, s.Step = "", ""
-
-				synth := ev
-				synth.Kind = EventCommand
-				synth.Command = cmd
-				// важный момент: теперь работаем уже с синтетическим событием
-				ev = synth
-				// на следующей итерации петли произойдёт авто-вход и вызов нужного шага
-				continue
+			// если хендлер не поменял шаг/флоу — нечего продолжать
+			if s.Flow == prevFlow && s.Step == prevStep {
+				return nil
 			}
-			// Нечего продолжать — выходим мягко
-			return nil
+			// иначе крутим следующую итерацию с тем же событием
+			continue
 		}
 
 		// 5) Обычный переход на следующий шаг

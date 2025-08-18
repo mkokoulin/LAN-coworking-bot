@@ -3,6 +3,7 @@ package botengine
 import (
 	"strings"
 
+	"github.com/mkokoulin/LAN-coworking-bot/internal/state"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
@@ -30,21 +31,25 @@ type Registry struct {
 	flows    map[types.Flow]map[types.Step]StepHandler
 	commands map[string]FlowEntry
 	cbPref   map[string]FlowEntry
-	Store    *SessionStore
+	Store    state.Manager
 }
 
 const (
 	EventCommand EventKind = iota
 	EventText
 	EventCallback
+	MyChatMember
 )
 
-func NewRegistry() *Registry {
+func NewRegistry(store state.Manager) *Registry {
+	if store == nil {
+		store = state.NewMemoryManager()
+	}
 	return &Registry{
 		flows:    map[types.Flow]map[types.Step]StepHandler{},
 		commands: map[string]FlowEntry{},
 		cbPref:   map[string]FlowEntry{},
-		Store:    NewSessionStore(), // 👈 важное
+		Store:    store,
 	}
 }
 
@@ -55,10 +60,14 @@ func (r *Registry) RegisterCallbackPrefix(prefix string, entry FlowEntry)       
 func (r *Registry) ResolveEntry(ev Event) (FlowEntry, bool) {
 	switch ev.Kind {
 	case EventCommand:
-		if e, ok := r.commands[ev.Command]; ok { return e, true }
+		if e, ok := r.commands[ev.Command]; ok {
+			return e, true
+		}
 	case EventCallback:
 		for pref, e := range r.cbPref {
-			if strings.HasPrefix(ev.CallbackData, pref) { return e, true }
+			if strings.HasPrefix(ev.CallbackData, pref) {
+				return e, true
+			}
 		}
 	}
 	return FlowEntry{}, false

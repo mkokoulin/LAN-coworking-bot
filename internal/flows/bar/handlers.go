@@ -26,8 +26,9 @@ const (
 )
 
 var (
-	stepAskServe types.Step = "bar:ask_serve"
-	stepAskZone  types.Step = "bar:ask_zone"
+	// stepBarHome  types.Step = "bar:home"
+	// stepAskServe types.Step = "bar:ask_serve"
+	// stepAskZone  types.Step = "bar:ask_zone"
 	// остальные шаги (stepHandle, stepAskName, stepConfirm, stepDone) объявлены в проекте
 )
 
@@ -35,6 +36,51 @@ const (
 	baristaContact = "@LAN_Barista" // для текста клиенту
 	baristaMention = "@lan_barista" // для пинга в админском чате
 )
+
+// --- персист ключи ---
+const (
+	keyBarStateBlob  = "user:bar_state"
+	keyCmdHistory    = "user:command_history"
+	keyOrdersHistory = "bar:orders_history"
+)
+
+// ----- модели персиста -----
+
+type BarState struct {
+	Cart      map[string]int `json:"cart,omitempty"`
+	Buyer     string         `json:"buyer,omitempty"`
+	Serve     string         `json:"serve,omitempty"`
+	Zone      string         `json:"zone,omitempty"`
+	Currency  string         `json:"currency,omitempty"`
+	Notes     string         `json:"notes,omitempty"`
+	OrderID   string         `json:"order_id,omitempty"`
+	UpdatedAt int64          `json:"updated_at,omitempty"`
+}
+
+type CommandEntry struct {
+	Cmd     string `json:"cmd"`
+	AtUnix  int64  `json:"at"`
+	Payload string `json:"payload,omitempty"`
+}
+
+type BarOrderItem struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Qty      int    `json:"qty"`
+	PriceAMD int    `json:"price_amd"`
+	SumAMD   int    `json:"sum_amd"`
+}
+
+type BarOrder struct {
+	OrderID   string         `json:"order_id"`
+	Buyer     string         `json:"buyer"`
+	Items     []BarOrderItem `json:"items"`
+	TotalAMD  int            `json:"total_amd"`
+	Serve     string         `json:"serve"`
+	Zone      string         `json:"zone"`
+	Notes     string         `json:"notes,omitempty"`
+	CreatedAt int64          `json:"created_at"`
+}
 
 // ---------- корзина ----------
 func addToCart(s *types.Session, id string, delta int) (newQty int, changed bool) {
@@ -82,9 +128,22 @@ func getCart(s *types.Session) map[string]int {
 		out := make(map[string]int, len(m))
 		for k, v := range m {
 			switch vv := v.(type) {
-			case int: out[k] = vv
-			case int64: out[k] = int(vv)
-			case float64: out[k] = int(vv)
+			case int:
+				out[k] = vv
+			case int32:      // ← добавь
+				out[k] = int(vv)
+			case int64:
+				out[k] = int(vv)
+			case uint:       // ← добавь
+				out[k] = int(vv)
+			case uint32:     // ← добавь
+				out[k] = int(vv)
+			case uint64:     // ← добавь
+				out[k] = int(vv)
+			case float32:    // ← добавь
+				out[k] = int(vv)
+			case float64:
+				out[k] = int(vv)
 			case json.Number:
 				if n, err := vv.Int64(); err == nil { out[k] = int(n) }
 			case string:
@@ -203,6 +262,150 @@ func resetBarState(s *types.Session) {
 	delete(s.Data, keyAwaitNotes)
 }
 
+// ---------- персист утилиты ----------
+
+func loadBarStateFromUser(s *types.Session) *BarState {
+	if s == nil { return nil }
+	raw := s.Data[keyBarStateBlob]
+	if raw == nil { return nil }
+	switch v := raw.(type) {
+	case *BarState:
+		return v
+	case BarState:
+		cp := v
+		return &cp
+	case map[string]interface{}:
+		b, _ := json.Marshal(v)
+		var st BarState
+		if json.Unmarshal(b, &st) == nil { return &st }
+	case string:
+		var st BarState
+		if json.Unmarshal([]byte(v), &st) == nil { return &st }
+	case []byte:
+		var st BarState
+		if json.Unmarshal(v, &st) == nil { return &st }
+	}
+	return nil
+}
+
+func persistBarStateToUser(s *types.Session) {
+	if s == nil { return }
+	st := BarState{
+		Cart:      cartSnapshot(s), // ← было getCart(s)
+		Buyer:     strings.TrimSpace(fmt.Sprint(s.Data[keyBuyer])),
+		Serve:     strings.TrimSpace(fmt.Sprint(s.Data[keyServe])),
+		Zone:      strings.TrimSpace(fmt.Sprint(s.Data[keyZone])),
+		Currency:  func() string { if c := strings.TrimSpace(fmt.Sprint(s.Data[keyCurrency])); c != "" && c != "<nil>" { return c }; return "AMD" }(),
+		Notes:     strings.TrimSpace(fmt.Sprint(s.Data[keyNotes])),
+		OrderID:   strings.TrimSpace(fmt.Sprint(s.Data[keyOrderID])),
+		UpdatedAt: time.Now().Unix(),
+	}
+	s.Data[keyBarStateBlob] = st
+}
+
+func restoreBarStateIntoSession(s *types.Session) {
+	if s == nil { return }
+
+	// тянем снепшот; помним, что s.Data на новом апдейте может быть пустым
+	st := loadBarStateFromUser(s)
+
+	// гарантируем наличие карты данных
+	if s.Data == nil {
+		s.Data = map[string]interface{}{}
+	}
+
+	// если снепшота нет — просто убедимся, что корзина есть
+	if st == nil {
+		if _, ok := s.Data[keyCart]; !ok || s.Data[keyCart] == nil {
+			s.Data[keyCart] = map[string]int{}
+		}
+		return
+	}
+
+	// 1) корзина: не держим ссылку на сохранённую map, всегда копируем
+	//    если в оперативной корзине пусто — поднимаем из снепшота
+	cur := getCart(s)
+	if len(cur) == 0 && st.Cart != nil {
+		cp := make(map[string]int, len(st.Cart))
+		for k, v := range st.Cart { cp[k] = v }
+		s.Data[keyCart] = cp
+	} else if cur == nil { // страховка на случай nil
+		s.Data[keyCart] = map[string]int{}
+	}
+
+	// 2) простые поля — подставляем, если есть
+	if st.Buyer    != "" { s.Data[keyBuyer]    = st.Buyer }
+	if st.Serve    != "" { s.Data[keyServe]    = st.Serve }
+	if st.Zone     != "" { s.Data[keyZone]     = st.Zone }
+	if st.Currency != "" { s.Data[keyCurrency] = st.Currency }
+	if st.Notes    != "" { s.Data[keyNotes]    = st.Notes }
+	if st.OrderID  != "" { s.Data[keyOrderID]  = st.OrderID }
+
+	// дефолт валюты, если так и не проставили
+	if c, ok := s.Data[keyCurrency]; !ok || fmt.Sprint(c) == "" || fmt.Sprint(c) == "<nil>" {
+		s.Data[keyCurrency] = "AMD"
+	}
+}
+
+
+// ---------- базовая гидрация на каждом апдейте ----------
+func ensureSessionHydrated(s *types.Session) {
+	if s == nil { return }
+	restoreBarStateIntoSession(s)
+	// ещё раз гарантируем дефолты
+	if s.Data == nil { s.Data = map[string]interface{}{} }
+	if _, ok := s.Data[keyCart]; !ok || s.Data[keyCart] == nil {
+		s.Data[keyCart] = map[string]int{}
+	}
+	if _, ok := s.Data[keyCurrency]; !ok || s.Data[keyCurrency] == nil || fmt.Sprint(s.Data[keyCurrency]) == "<nil>" {
+		s.Data[keyCurrency] = "AMD"
+	}
+}
+
+
+func appendCommandHistory(s *types.Session, cmd, payload string) {
+	if s == nil { return }
+	now := time.Now().Unix()
+	entry := CommandEntry{Cmd: cmd, AtUnix: now, Payload: payload}
+	var list []CommandEntry
+	switch v := s.Data[keyCmdHistory].(type) {
+	case []CommandEntry:
+		list = v
+	case []interface{}:
+		b, _ := json.Marshal(v)
+		_ = json.Unmarshal(b, &list)
+	case string:
+		_ = json.Unmarshal([]byte(v), &list)
+	case []byte:
+		_ = json.Unmarshal(v, &list)
+	}
+	list = append(list, entry)
+	if len(list) > 200 { list = list[len(list)-200:] }
+	s.Data[keyCmdHistory] = list
+}
+
+func appendOrderHistory(s *types.Session, ord BarOrder) {
+	if s == nil { return }
+	var list []BarOrder
+	switch v := s.Data[keyOrdersHistory].(type) {
+	case []BarOrder:
+		list = v
+	case []interface{}:
+		b, _ := json.Marshal(v)
+		_ = json.Unmarshal(b, &list)
+	case string:
+		_ = json.Unmarshal([]byte(v), &list)
+	case []byte:
+		_ = json.Unmarshal(v, &list)
+	}
+	list = append(list, ord)
+	if len(list) > 200 { list = list[len(list)-200:] }
+	s.Data[keyOrdersHistory] = list
+	// обновим снимок
+	s.Data[keyOrderID] = ord.OrderID
+	persistBarStateToUser(s)
+}
+
 // ---------- утилиты ----------
 func safeHTML(s string) string {
 	s = strings.ReplaceAll(s, "&", "&amp;")
@@ -211,21 +414,26 @@ func safeHTML(s string) string {
 	return s
 }
 
+func generateOrderID() string {
+	// Простой монотонный ID на основе времени
+	return fmt.Sprintf("ORD-%d", time.Now().Unix())
+}
+
 // Кнопка в админском сообщении
 func adminOrderKeyboard(userChatID int64, serve, zone, label string) tgbotapi.InlineKeyboardMarkup {
-    var payload string
-    if serve == "pickup" {
-        payload = fmt.Sprintf("bar:done:%d:p", userChatID)
-    } else {
-        zc := "z"
-        switch zone {
-        case "coworking": zc = "zcw"
-        case "cafe":      zc = "zcf"
-        case "street":    zc = "zst"
-        }
-        payload = fmt.Sprintf("bar:done:%d:%s", userChatID, zc)
-    }
-    return ui.Inline(ui.Row(ui.Cb(label, payload)))
+	var payload string
+	if serve == "pickup" {
+		payload = fmt.Sprintf("bar:done:%d:p", userChatID)
+	} else {
+		zc := "z"
+		switch zone {
+		case "coworking": zc = "zcw"
+		case "cafe":      zc = "zcf"
+		case "street":    zc = "zst"
+		}
+		payload = fmt.Sprintf("bar:done:%d:%s", userChatID, zc)
+	}
+	return ui.Inline(ui.Row(ui.Cb(label, payload)))
 }
 
 func parseDonePayload(data string) (userID int64, serve, zone string, ok bool) {
@@ -277,21 +485,32 @@ func safeEditMenu(d botengine.Deps, chatID int64, messageID int, txt string, kb 
 
 // ---------- шаги ----------
 func prompt(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
-	if ev.Kind == botengine.EventCommand && ev.Command == "bar" { resetBarState(s) }
+
+	// восстановим состояние пользователя и запишем команду
+	if ev.Kind == botengine.EventCommand && ev.Command == "bar" {
+		restoreBarStateIntoSession(s)
+		appendCommandHistory(s, "/bar", "")
+	}
+
 	if s.Data == nil { s.Data = map[string]interface{}{} }
 	if _, ok := s.Data[keyCart]; !ok { s.Data[keyCart] = map[string]int{} }
 	if _, ok := s.Data[keyCurrency]; !ok { s.Data[keyCurrency] = "AMD" }
 
 	_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_welcome"))
 	log.Printf("[bar] session started for chat %d", s.ChatID)
+
 	txt := renderMenuCompact(d, s)
-	kb  := menuKeyboardCompact(d, s)
+	kb := menuKeyboardCompact(d, s)
 	_ = ui.SendHTML(d.Bot, s.ChatID, txt, kb)
+
+	persistBarStateToUser(s)
 	return stepHandle, nil
 }
 
 func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
 	if ev.Kind != botengine.EventCallback { return stepHandle, nil }
 
@@ -299,72 +518,70 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 	log.Printf("[bar] cb data=%q chat=%d msg=%d inline=%q", data, s.ChatID, ev.MessageID, ev.InlineMessageID)
 
 	switch {
-		case strings.HasPrefix(data, "bar:done:"):
-			// 1) мгновенно гасим спиннер
-			if err := ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "Принято"); err != nil {
-				log.Printf("[bar] answerCallback failed: %v", err)
-			}
+	case strings.HasPrefix(data, "bar:done:"):
+		// 1) мгновенно гасим спиннер
+		if err := ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "Принято"); err != nil {
+			log.Printf("[bar] answerCallback failed: %v", err)
+		}
 
-			// 2) парсим payload
-			userID, serve, zone, ok := parseDonePayload(data)
-			if !ok {
-				_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "Некорректные данные кнопки")
-				return stepHandle, nil
-			}
-
-			// 3) пробуем отправить уведомление гостю (с небольшим ретраем)
-			txt := readyText(func(key string, a ...any) string { return p.Sprintf(key, a...) }, serve, zone)
-			var sendErr error
-			for i := 0; i < 2; i++ {
-				_, sendErr = d.Bot.Send(tgbotapi.NewMessage(userID, txt))
-				if sendErr == nil {
-					break
-				}
-				time.Sleep(500 * time.Millisecond)
-			}
-
-			// 4) выключаем кнопку в админском сообщении
-			doneKB := ui.Inline(ui.Row(ui.Cb(p.Sprintf("bar_admin_issued_label"), "bar:noop")))
-			if ev.MessageID != 0 && s.ChatID != 0 {
-				if _, err := d.Bot.Send(tgbotapi.NewEditMessageReplyMarkup(s.ChatID, ev.MessageID, doneKB)); err != nil {
-					log.Printf("[bar] edit admin markup failed (chat=%d msg=%d): %v", s.ChatID, ev.MessageID, err)
-				}
-			} else if ev.InlineMessageID != "" {
-				cfg := tgbotapi.NewEditMessageReplyMarkup(0, 0, doneKB)
-				cfg.InlineMessageID = ev.InlineMessageID
-				if _, err := d.Bot.Send(cfg); err != nil {
-					log.Printf("[bar] edit inline admin markup failed: %v", err)
-				}
-			}
-
-			// 5) короткая заметка в админском чате (успех/ошибка), чтобы было видно, что произошло
-			if ev.MessageID != 0 && s.ChatID != 0 {
-				var note tgbotapi.MessageConfig
-				if sendErr != nil {
-					note = tgbotapi.NewMessage(s.ChatID, p.Sprintf("bar_admin_notify_fail", userID, sendErr))
-				} else {
-					note = tgbotapi.NewMessage(s.ChatID, p.Sprintf("bar_admin_user_notified"))
-				}
-				note.ReplyToMessageID = ev.MessageID
-				if _, err := d.Bot.Send(note); err != nil {
-					log.Printf("[bar] post admin ack failed: %v", err)
-				}
-			}
-
+		// 2) парсим payload
+		userID, serve, zone, ok := parseDonePayload(data)
+		if !ok {
+			_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "Некорректные данные кнопки")
 			return stepHandle, nil
+		}
 
+		// 3) уведомление гостю
+		txt := readyText(func(key string, a ...any) string { return p.Sprintf(key, a...) }, serve, zone)
+		var sendErr error
+		for i := 0; i < 2; i++ {
+			_, sendErr = d.Bot.Send(tgbotapi.NewMessage(userID, txt))
+			if sendErr == nil { break }
+			time.Sleep(500 * time.Millisecond)
+		}
 
+		// 4) выключаем кнопку в админском сообщении
+		doneKB := ui.Inline(ui.Row(ui.Cb(p.Sprintf("bar_admin_issued_label"), "bar:noop")))
+		if ev.MessageID != 0 && s.ChatID != 0 {
+			if _, err := d.Bot.Send(tgbotapi.NewEditMessageReplyMarkup(s.ChatID, ev.MessageID, doneKB)); err != nil {
+				log.Printf("[bar] edit admin markup failed (chat=%d msg=%d): %v", s.ChatID, ev.MessageID, err)
+			}
+		} else if ev.InlineMessageID != "" {
+			cfg := tgbotapi.NewEditMessageReplyMarkup(0, 0, doneKB)
+			cfg.InlineMessageID = ev.InlineMessageID
+			if _, err := d.Bot.Send(cfg); err != nil {
+				log.Printf("[bar] edit inline admin markup failed: %v", err)
+			}
+		}
+
+		// 5) заметка в админском чате
+		if ev.MessageID != 0 && s.ChatID != 0 {
+			var note tgbotapi.MessageConfig
+			if sendErr != nil {
+				note = tgbotapi.NewMessage(s.ChatID, p.Sprintf("bar_admin_notify_fail", userID, sendErr))
+			} else {
+				note = tgbotapi.NewMessage(s.ChatID, p.Sprintf("bar_admin_user_notified"))
+			}
+			note.ReplyToMessageID = ev.MessageID
+			if _, err := d.Bot.Send(note); err != nil {
+				log.Printf("[bar] post admin ack failed: %v", err)
+			}
+		}
+		return stepHandle, nil
 
 	case strings.HasPrefix(data, "bar:serve:"):
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "")
 		if strings.HasSuffix(data, ":pickup") {
 			if s.Data == nil { s.Data = map[string]interface{}{} }
-			s.Data[keyServe] = "pickup"; delete(s.Data, keyZone)
+			s.Data[keyServe] = "pickup"
+			delete(s.Data, keyZone)
+			persistBarStateToUser(s)
 			presentConfirm(d, s); return stepConfirm, nil
 		}
 		if strings.HasSuffix(data, ":tozone") {
 			if s.Data == nil { s.Data = map[string]interface{}{} }
 			s.Data[keyServe] = "tozone"
+			persistBarStateToUser(s)
 			_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_ask_zone"), zoneKeyboard(d, s))
 			return stepAskZone, nil
 		}
@@ -378,16 +595,20 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 		case strings.HasSuffix(data, ":cafe"):      s.Data[keyZone] = "cafe"
 		case strings.HasSuffix(data, ":street"):    s.Data[keyZone] = "street"
 		}
+		persistBarStateToUser(s)
 		presentConfirm(d, s); return stepConfirm, nil
 
 	case strings.HasPrefix(data, "bar:add:"):
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, p.Sprintf("bar_added"))
 		id := strings.TrimPrefix(data, "bar:add:")
 		_, changed := addToCart(s, id, +1)
-		if changed && ev.MessageID != 0 {
-			kb := menuKeyboardCompact(d, s)
-			txt := renderMenuCompact(d, s)
-			safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+		if changed {
+			persistBarStateToUser(s)
+			if ev.MessageID != 0 {
+				kb := menuKeyboardCompact(d, s)
+				txt := renderMenuCompact(d, s)
+				safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+			}
 		}
 		return stepHandle, nil
 
@@ -395,10 +616,13 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, p.Sprintf("bar_removed"))
 		id := strings.TrimPrefix(data, "bar:rem:")
 		_, changed := addToCart(s, id, -1)
-		if changed && ev.MessageID != 0 {
-			txt := renderCartText(s, d)
-			kb := cartKeyboard(d, s)
-			safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+		if changed {
+			persistBarStateToUser(s)
+			if ev.MessageID != 0 {
+				kb := menuKeyboardCompact(d, s)
+				txt := renderMenuCompact(d, s)
+				safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+			}
 		}
 		return stepHandle, nil
 
@@ -427,6 +651,7 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "")
 		id := strings.TrimPrefix(data, "bar:rmitem:")
 		removeItem(s, id)
+		persistBarStateToUser(s)
 		txt := renderCartText(s, d)
 		kb := cartKeyboard(d, s)
 		_ = ui.SendHTML(d.Bot, s.ChatID, txt, kb)
@@ -435,6 +660,7 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 	case data == "bar:clear":
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, p.Sprintf("bar_cart_cleared"))
 		clearCart(s)
+		persistBarStateToUser(s)
 		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_cart_cleared"))
 		if ev.MessageID != 0 {
 			kb := menuKeyboardCompact(d, s)
@@ -466,6 +692,7 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 
 // ---------- имя ----------
 func askName(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
 	if ev.Kind != botengine.EventText {
 		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_ask_name_hint"))
@@ -478,15 +705,17 @@ func askName(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 	}
 	if s.Data == nil { s.Data = map[string]interface{}{} }
 	s.Data[keyBuyer] = name
+	persistBarStateToUser(s)
 	_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_ask_serve"), serveKeyboard(d, s))
 	return stepAskServe, nil
 }
 
 // ---------- подача ----------
 func askServe(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
 	if ev.Kind != botengine.EventCallback {
-		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_ask_serve_hint"), serveKeyboard(d, s))
+		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_ask_serve"), serveKeyboard(d, s))
 		return stepAskServe, nil
 	}
 	_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "")
@@ -494,10 +723,12 @@ func askServe(ctx context.Context, ev botengine.Event, d botengine.Deps, s *type
 	case "bar:serve:pickup":
 		if s.Data == nil { s.Data = map[string]interface{}{} }
 		s.Data[keyServe] = "pickup"; delete(s.Data, keyZone)
+		persistBarStateToUser(s)
 		presentConfirm(d, s); return stepConfirm, nil
 	case "bar:serve:tozone":
 		if s.Data == nil { s.Data = map[string]interface{}{} }
 		s.Data[keyServe] = "tozone"
+		persistBarStateToUser(s)
 		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_ask_zone"), zoneKeyboard(d, s))
 		return stepAskZone, nil
 	case "bar:cancel":
@@ -509,6 +740,7 @@ func askServe(ctx context.Context, ev botengine.Event, d botengine.Deps, s *type
 		delete(s.Data, keyOrderID)
 		delete(s.Data, keyNotes)
 		delete(s.Data, keyAwaitNotes)
+		persistBarStateToUser(s)
 		s.Flow, s.Step = "", ""
 		return stepDone, nil
 	default:
@@ -518,6 +750,7 @@ func askServe(ctx context.Context, ev botengine.Event, d botengine.Deps, s *type
 
 // ---------- зона ----------
 func askZone(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
 	if ev.Kind != botengine.EventCallback {
 		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_ask_zone"), zoneKeyboard(d, s))
@@ -528,16 +761,17 @@ func askZone(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 	switch data {
 	case "bar:zone:coworking":
 		if s.Data == nil { s.Data = map[string]interface{}{} }
-		s.Data[keyZone] = "coworking"; presentConfirm(d, s); return stepConfirm, nil
+		s.Data[keyZone] = "coworking"; persistBarStateToUser(s); presentConfirm(d, s); return stepConfirm, nil
 	case "bar:zone:cafe":
 		if s.Data == nil { s.Data = map[string]interface{}{} }
-		s.Data[keyZone] = "cafe"; presentConfirm(d, s); return stepConfirm, nil
+		s.Data[keyZone] = "cafe"; persistBarStateToUser(s); presentConfirm(d, s); return stepConfirm, nil
 	case "bar:zone:street":
 		if s.Data == nil { s.Data = map[string]interface{}{} }
-		s.Data[keyZone] = "street"; presentConfirm(d, s); return stepConfirm, nil
+		s.Data[keyZone] = "street"; persistBarStateToUser(s); presentConfirm(d, s); return stepConfirm, nil
 	case "bar:cancel":
 		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_order_cancelled"))
 		clearCart(s); delete(s.Data, keyBuyer); delete(s.Data, keyServe); delete(s.Data, keyZone); delete(s.Data, keyNotes); delete(s.Data, keyAwaitNotes)
+		persistBarStateToUser(s)
 		s.Flow, s.Step = "", ""
 		return stepDone, nil
 	default:
@@ -547,6 +781,7 @@ func askZone(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 
 // ---------- подтверждение ----------
 func presentConfirm(d botengine.Deps, s *types.Session) {
+	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
 	buyer := fmt.Sprint(s.Data[keyBuyer])
 	summary := orderServeSummary(d, s)
@@ -562,7 +797,7 @@ func presentConfirm(d botengine.Deps, s *types.Session) {
 		notes := strings.TrimSpace(fmt.Sprint(notesRaw))
 		if notes != "" {
 			b.WriteString("\n")
-			b.WriteString(p.Sprintf("bar_comment_label"))
+			b.WriteString(p.Sprintf("bar_comment_label") + " ") // ← пробел
 			b.WriteString(safeHTML(notes))
 		}
 	}
@@ -575,6 +810,7 @@ func presentConfirm(d botengine.Deps, s *types.Session) {
 }
 
 func orderServeSummary(d botengine.Deps, s *types.Session) string {
+	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
 	serve := fmt.Sprint(s.Data[keyServe])
 	zone  := fmt.Sprint(s.Data[keyZone])
@@ -589,7 +825,20 @@ func orderServeSummary(d botengine.Deps, s *types.Session) string {
 	}
 }
 
+func barHome(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	ensureSessionHydrated(s)
+	p := d.Printer(s.Lang)
+
+    // Если хочешь кнопку "Full menu" — см. пункт 3 ниже (cmd-роутер).
+    // Без кнопки просто отправляем текст с /menu.
+    _ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_overview"), nil)
+
+    // После обзора — в твой первый шаг (как раньше было)
+    return stepAskServe, nil
+}
+
 func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
 
 	// 1) если пришёл текст и мы ждём комментарий — сохраняем
@@ -599,6 +848,7 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 		if s.Data == nil { s.Data = map[string]interface{}{} }
 		s.Data[keyNotes] = notes
 		delete(s.Data, keyAwaitNotes)
+		persistBarStateToUser(s)
 
 		ack, _ := d.Bot.Send(tgbotapi.NewMessage(s.ChatID, p.Sprintf("bar_notes_saved")))
 		go func(chatID int64, msgID int) {
@@ -621,13 +871,14 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 		buyer := fmt.Sprint(s.Data[keyBuyer])
 		items := cartSnapshot(s)
 		total := cartTotalAMD(s)
-		oid := fmt.Sprint(s.Data[keyOrderID])
-		if strings.TrimSpace(oid) == "" || oid == "<nil>" {
-			// oid = generateCatOrderID()
+		oid := strings.TrimSpace(fmt.Sprint(s.Data[keyOrderID]))
+		if oid == "" || oid == "<nil>" {
+			oid = generateOrderID()
 			if s.Data == nil { s.Data = map[string]interface{}{} }
 			s.Data[keyOrderID] = oid
 		}
 
+		// текст в админский чат
 		var b strings.Builder
 		b.WriteString("🔔 ")
 		b.WriteString(baristaMention)
@@ -659,6 +910,33 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 		b.WriteString(p.Sprintf("bar_admin_contact_line", baristaContact) + "\n")
 		b.WriteString(p.Sprintf("bar_admin_contact_meta", ev.FromUserName, s.ChatID) + "\n")
 
+		// история заказа
+		var orderItems []BarOrderItem
+		for _, id := range ids {
+			it := findItem(id); if it == nil { continue }
+			qty := items[id]
+			orderItems = append(orderItems, BarOrderItem{
+				ID:       id,
+				Title:    it.Title,
+				Qty:      qty,
+				PriceAMD: it.PriceAMD,
+				SumAMD:   it.PriceAMD * qty,
+			})
+		}
+		ord := BarOrder{
+			OrderID:   oid,
+			Buyer:     buyer,
+			Items:     orderItems,
+			TotalAMD:  total,
+			Serve:     fmt.Sprint(s.Data[keyServe]),
+			Zone:      fmt.Sprint(s.Data[keyZone]),
+			Notes:     strings.TrimSpace(fmt.Sprint(s.Data[keyNotes])),
+			CreatedAt: time.Now().Unix(),
+		}
+		appendOrderHistory(s, ord)
+		persistBarStateToUser(s)
+
+		// отправка в админский чат с fallback
 		targetChat := d.Cfg.OrdersChatId
 		if targetChat == 0 { targetChat = d.Cfg.AdminChatId }
 
@@ -668,9 +946,17 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 		msg := tgbotapi.NewMessage(targetChat, b.String())
 		msg.ParseMode  = "HTML"
 		msg.ReplyMarkup = adminOrderKeyboard(s.ChatID, serve, zone, p.Sprintf("bar_admin_ready_btn"))
-		_, _ = d.Bot.Send(msg) // обработка ошибок — как у тебя
+		if _, err := d.Bot.Send(msg); err != nil {
+			log.Printf("[bar] FAILED to send order to chat=%d: %v", targetChat, err)
+			if targetChat != d.Cfg.AdminChatId && d.Cfg.AdminChatId != 0 {
+				fb := tgbotapi.NewMessage(d.Cfg.AdminChatId,
+					fmt.Sprintf("⚠️ Не удалось отправить заказ в чат %d: %v\n\n%s", targetChat, err, b.String()))
+				fb.ParseMode = "HTML"
+				_, _ = d.Bot.Send(fb)
+			}
+		}
 
-		// ссылка «открыть чат» — локализация подписи
+		// подтверждение пользователю
 		var contactLink string
 		if ev.FromUserName != "" {
 			contactLink = fmt.Sprintf("<a href=\"https://t.me/%s\">@%s</a>", ev.FromUserName, ev.FromUserName)
@@ -684,6 +970,7 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 			p.Sprintf("bar_contact_hint", baristaContact)
 		_ = ui.SendHTML(d.Bot, s.ChatID, confTxt)
 
+		// очистка оперативного состояния
 		clearCart(s)
 		delete(s.Data, keyBuyer)
 		delete(s.Data, keyServe)
@@ -691,6 +978,8 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 		delete(s.Data, keyOrderID)
 		delete(s.Data, keyNotes)
 		delete(s.Data, keyAwaitNotes)
+		persistBarStateToUser(s)
+
 		s.Flow, s.Step = "", ""
 		return stepDone, nil
 
@@ -698,17 +987,20 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, p.Sprintf("bar_notes_toast_prompt"))
 		if s.Data == nil { s.Data = map[string]interface{}{} }
 		s.Data[keyAwaitNotes] = "1"
+		persistBarStateToUser(s)
 		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_notes_enter"), notesCancelKeyboard(d, s))
 		return stepConfirm, nil
 
 	case "bar:notes:clear":
 		delete(s.Data, keyNotes)
+		persistBarStateToUser(s)
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, p.Sprintf("bar_notes_deleted"))
 		presentConfirm(d, s)
 		return stepConfirm, nil
 
 	case "bar:notes:cancel":
 		delete(s.Data, keyAwaitNotes)
+		persistBarStateToUser(s)
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, p.Sprintf("bar_notes_unchanged"))
 		presentConfirm(d, s)
 		return stepConfirm, nil
@@ -719,6 +1011,7 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 		delete(s.Data, keyBuyer)
 		delete(s.Data, keyNotes)
 		delete(s.Data, keyAwaitNotes)
+		persistBarStateToUser(s)
 		s.Flow, s.Step = "", ""
 		return stepDone, nil
 	}
@@ -747,7 +1040,6 @@ func cartKeyboard(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyboardMar
 
 func confirmKeyboard(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyboardMarkup {
 	if s == nil {
-		// Provide a fallback language if session is nil
 		p := d.Printer("ru")
 		var rows [][]tgbotapi.InlineKeyboardButton
 		rows = append(rows, ui.Row(ui.Cb(p.Sprintf("bar_btn_confirm"), "bar:confirm")))

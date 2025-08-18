@@ -2,6 +2,7 @@ package flows
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/botengine"
@@ -63,18 +64,27 @@ func waitCode(ctx context.Context, ev botengine.Event, d botengine.Deps, s *type
 		return WifiWaitCode, err
 	}
 	if !ok {
-		s.Attempts++
+		// считаем попытки в s.Data["wifi_attempts"]
+		if s.Data == nil {
+			s.Data = map[string]interface{}{}
+		}
+		attempts := toInt(s.Data["wifi_attempts"])
+		attempts++
+		s.Data["wifi_attempts"] = attempts
+
 		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("wrong_secret"))
-		if s.Attempts >= 3 {
+		if attempts >= 3 {
 			s.Flow, s.Step = "", ""
 			return WifiDone, nil
 		}
 		return WifiWaitCode, nil
 	}
 
+	// успех — сбрасываем попытки и отмечаем авторизацию
 	if s.Data == nil {
 		s.Data = map[string]interface{}{}
 	}
+	delete(s.Data, "wifi_attempts")
 	s.Data["is_authorized"] = "true"
 
 	_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("wifi_coworking", d.Cfg.CoworkingWifiPassword), ui.RemoveKeyboard())
@@ -84,4 +94,25 @@ func waitCode(ctx context.Context, ev botengine.Event, d botengine.Deps, s *type
 
 func done(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	return WifiDone, nil
+}
+
+// --- helpers ---
+
+// toInt безопасно приводит interface{} к int (учитывая возможные типы после BSON)
+func toInt(v interface{}) int {
+	switch t := v.(type) {
+	case int:
+		return t
+	case int32:
+		return int(t)
+	case int64:
+		return int(t)
+	case float64:
+		return int(t)
+	case string:
+		if n, err := strconv.Atoi(t); err == nil {
+			return n
+		}
+	}
+	return 0
 }

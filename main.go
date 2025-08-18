@@ -2,35 +2,35 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"golang.org/x/text/message"
 
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"github.com/mkokoulin/LAN-coworking-bot/internal/botengine"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/config"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/flows"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/locales"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/services"
-	"github.com/mkokoulin/LAN-coworking-bot/internal/singleton"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/state"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
-// быстрая проверка LP-доступности
-func preflightLP(bot *tgbotapi.BotAPI) error {
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 1
-	u.AllowedUpdates = []string{"message", "callback_query", "my_chat_member", "chat_member"}
-	_, err := bot.GetUpdates(u)
-	return err
-}
+// ENV-переменные управления:
+//   LOCK_DISABLE=1            — полностью отключить лок (на свой страх и риск)
+//   LOCK_FORCE=1              — форс-сброс текущего лока на старте
+//   DROP_PENDING_UPDATES=1    — при чистке вебхука дропнуть очередь апдейтов
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -44,91 +44,100 @@ func main() {
 		log.Fatalf("[boot] load config: %v", err)
 	}
 
-	// 2) Telegram Bot
+	// 2) Telegram Bot (создаём клиент, НО ничего у Telegram не дёргаем до лока)
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
 		log.Fatalf("[boot] telegram: %v", err)
 	}
 	log.Printf("Bot started as @%s (debug=%v)", bot.Self.UserName, bot.Debug)
 
-	// 3) LP-only: выключаем webhook (чтобы getUpdates работал)
-	if _, err := bot.Request(tgbotapi.DeleteWebhookConfig{DropPendingUpdates: true}); err != nil {
+	// 3) Монго-лок (опционально): гарантируем одного поллера getUpdates на токен
+	lockDisabled := os.Getenv("LOCK_DISABLE") == "1"
+	lockID := "telegram_updates_lock:" + bot.Self.UserName
+	var release func() error = func() error { return nil }
+
+	if !lockDisabled {
+		mongoDB := "coworking_bot"
+		mongoColl := "locks"
+
+		client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.MongoURI))
+		if err != nil {
+			log.Fatalf("[singleton] mongo connect: %v", err)
+		}
+		coll := client.Database(mongoDB).Collection(mongoColl)
+		if err := ensureTTLIndex(ctx, coll); err != nil {
+			log.Fatalf("[singleton] ensure TTL index: %v", err)
+		}
+
+		// Аварийный сброс лока (если прошлый владелец умер без TTL/GC)
+		if os.Getenv("LOCK_FORCE") == "1" {
+			if _, err := coll.DeleteOne(ctx, bson.M{"_id": lockID}); err != nil {
+				log.Fatalf("[singleton] force release failed: %v", err)
+			}
+			log.Printf("[singleton] force-released %s", lockID)
+		}
+
+		// Логируем текущего владельца (если есть)
+		var cur lockDoc
+		if err := coll.FindOne(ctx, bson.M{"_id": lockID}).Decode(&cur); err == nil {
+			log.Printf("[singleton] current lock owner: %s (expires %s)", cur.Owner, cur.ExpireAt.Format(time.RFC3339))
+		}
+
+		// Ждём лок (TTL=3m, heartbeat каждые 90s)
+		release, err = mongoWaitAcquire(ctx, coll, lockID, 3*time.Minute)
+		if err != nil {
+			log.Fatalf("[singleton] cannot acquire lock: %v", err)
+		}
+		defer func() { _ = release() }()
+		log.Println("[singleton] lock acquired — starting bot…")
+	} else {
+		log.Println("[singleton] LOCK_DISABLE=1 — запускаемся БЕЗ лока (не запускай второй экземпляр!)")
+	}
+
+	// 4) Чистим webhook уже после (или сразу, если лок отключен)
+	dropPending := os.Getenv("DROP_PENDING_UPDATES") == "1"
+	if _, err := bot.Request(tgbotapi.DeleteWebhookConfig{DropPendingUpdates: dropPending}); err != nil {
 		log.Printf("[boot] deleteWebhook warn: %v", err)
 	}
 
-	// 4) Preflight: если кто-то уже поллит токен / включён вебхук — выходим
-	if err := preflightLP(bot); err != nil {
-		es := strings.ToLower(err.Error())
-		if strings.Contains(es, "conflict") ||
-			strings.Contains(es, "terminated by other getupdates") ||
-			strings.Contains(es, "webhook") {
-			log.Fatalf("[boot] LP недоступен: %v", err)
-		}
-		log.Printf("[boot] preflight getUpdates warn: %v", err)
-	}
-
-	// 5) Монолок (персонифицированный под бота)
-	lockID := "telegram_updates_lock:" + bot.Self.UserName
-	if os.Getenv("LOCK_FORCE") == "1" {
-		if err := singleton.ForceRelease(ctx, cfg.MongoURI, "coworking_bot", lockID); err != nil {
-			log.Fatalf("[singleton] force release failed: %v", err)
-		}
-		log.Printf("[singleton] force-released %s", lockID)
-	}
-	if owner, exp, err := singleton.CurrentOwner(ctx, cfg.MongoURI, "coworking_bot", lockID); err == nil {
-		log.Printf("[singleton] current lock owner: %s (expires %s)", owner, exp.Format(time.RFC3339))
-	}
-	lock := singleton.EnsureSingletonOrExit(ctx, cfg.MongoURI, "coworking_bot", lockID)
-	defer lock.Release(context.Background(), lockID)
-
-	// 6) Сервисы
+	// 5) Сервисы
 	svcs, err := initServices(ctx, cfg)
 	if err != nil {
 		log.Fatalf("[boot] services: %v", err)
 	}
 
-	// 7) State manager
-	stateMgr, err := state.NewMongo(cfg.MongoURI, "coworking_bot", "user_states")
+	// 6) State manager
+	stateMgr, err := state.NewMongoManager(ctx, cfg.MongoURI, "coworking_bot", "user_states")
 	if err != nil {
 		log.Fatalf("[boot] state: %v", err)
 	}
 
-	// 8) Registry + flows
-	reg := botengine.NewRegistry()
+	// 7) Registry + flows
+	reg := botengine.NewRegistry(stateMgr)
 	flows.RegisterAll(reg)
 
-	// 9) Dispatcher
+	// 8) Dispatcher
 	dispatcher := botengine.NewDispatcher(bot, cfg, svcs, reg)
 	dispatcher.AttachPrinter(func(lang string) *message.Printer { return locales.Printer(lang) })
 
-	// 9.1) Проверим OrdersChatId и права бота — ПОЗИЦИОННЫЕ литералы для embedded полей
+	// 8.1) (опционально) проверяем OrdersChatId и права бота
 	if cfg.OrdersChatId != 0 {
-		// GetChat: ChatInfoConfig содержит embedded ChatConfig — задаём позиционно
 		if chat, err := bot.GetChat(tgbotapi.ChatInfoConfig{
-			tgbotapi.ChatConfig{
-				ChatID: cfg.OrdersChatId,
-				// SuperGroupUsername: "", // альтернатива по username, если нужно
-			},
+			tgbotapi.ChatConfig{ChatID: cfg.OrdersChatId},
 		}); err != nil {
 			log.Printf("[boot] OrdersChatId GETCHAT FAIL: %v", err)
 		} else {
-			log.Printf("[boot] OrdersChatId ok: type=%s title=%q id=%d",
-				chat.Type, chat.Title, chat.ID)
+			log.Printf("[boot] OrdersChatId ok: type=%s title=%q id=%d", chat.Type, chat.Title, chat.ID)
 		}
 
-		// GetChatMember: GetChatMemberConfig содержит embedded ChatConfigWithUser — тоже позиционно
 		if member, err := bot.GetChatMember(tgbotapi.GetChatMemberConfig{
-			tgbotapi.ChatConfigWithUser{
-				ChatID: cfg.OrdersChatId,
-				UserID: bot.Self.ID,
-			},
+			tgbotapi.ChatConfigWithUser{ChatID: cfg.OrdersChatId, UserID: bot.Self.ID},
 		}); err != nil {
 			log.Printf("[boot] OrdersChatId GETCHATMEMBER FAIL: %v", err)
 		} else {
 			log.Printf("[boot] Bot membership in OrdersChatId: status=%s", member.Status)
 		}
 
-		// Опционально — пинг в заказной чат на старте
 		if os.Getenv("PING_ORDERS_ON_START") == "1" {
 			ping := tgbotapi.NewMessage(cfg.OrdersChatId, "🤖 Bot online · orders will appear here")
 			if _, err := bot.Send(ping); err != nil {
@@ -139,7 +148,7 @@ func main() {
 		}
 	}
 
-	// 10) Грейсфул-стоп
+	// 9) Graceful shutdown
 	go func() {
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
@@ -148,7 +157,7 @@ func main() {
 		cancel()
 	}()
 
-	// 11) Поехали
+	// 10) Поехали
 	go botengine.RunWeeklyEvents(ctx, dispatcher, reg, stateMgr, cfg)
 	dispatcher.Run(ctx)
 	log.Println("Bye 👋")
@@ -173,4 +182,113 @@ func initServices(ctx context.Context, cfg *config.Config) (types.Services, erro
 		Events:          eventsService,
 		Subscriptions:   subs,
 	}, nil
+}
+
+// ====== Mongo lock helpers (локальный, без отдельного пакета) ======
+
+type lockDoc struct {
+	ID       string    `bson:"_id"`
+	Owner    string    `bson:"owner"`
+	ExpireAt time.Time `bson:"expireAt"`
+	Created  time.Time `bson:"createdAt,omitempty"`
+}
+
+func ensureTTLIndex(ctx context.Context, coll *mongo.Collection) error {
+	idx := mongo.IndexModel{
+		Keys:    bson.D{{Key: "expireAt", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(0),
+	}
+	_, err := coll.Indexes().CreateOne(ctx, idx)
+	return err
+}
+
+func newOwnerID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
+}
+
+// mongoWaitAcquire ждёт захвата лока; возвращает release().
+func mongoWaitAcquire(ctx context.Context, coll *mongo.Collection, key string, ttl time.Duration) (func() error, error) {
+	owner := newOwnerID()
+	for {
+		ok, wait, err := mongoTryLock(ctx, coll, key, ttl, owner)
+		if err == nil && ok {
+			// Heartbeat — продлеваем TTL каждые ttl/2
+			stop := make(chan struct{})
+			go func() {
+				t := time.NewTicker(ttl / 2)
+				defer t.Stop()
+				for {
+					select {
+					case <-t.C:
+						_ = mongoRenew(context.Background(), coll, key, owner, ttl)
+					case <-stop:
+						return
+					}
+				}
+			}()
+			release := func() error {
+				close(stop)
+				_, _ = coll.DeleteOne(context.Background(), bson.M{"_id": key, "owner": owner})
+				return nil
+			}
+			return release, nil
+		}
+		// бэкофф при ошибке или ожидании чужого TTL
+		if err != nil && wait <= 0 {
+			wait = 500 * time.Millisecond
+		}
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+// mongoTryLock — атомарная попытка забрать/продлить лок.
+func mongoTryLock(ctx context.Context, coll *mongo.Collection, key string, ttl time.Duration, owner string) (ok bool, wait time.Duration, err error) {
+	now := time.Now()
+	upd := bson.M{
+		"$setOnInsert": bson.M{"createdAt": now},
+		"$set":         bson.M{"owner": owner, "expireAt": now.Add(ttl)},
+	}
+	filter := bson.M{
+		"_id": key,
+		"$or": []bson.M{
+			{"expireAt": bson.M{"$lte": now}}, // истёкший лок
+			{"owner": owner},                  // наш — продлеваем
+		},
+	}
+	opts := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
+
+	var out lockDoc
+	err = coll.FindOneAndUpdate(ctx, filter, upd, opts).Decode(&out)
+	if err == nil {
+		return true, 0, nil
+	}
+
+	// Не взяли — оценим оставшийся TTL
+	var cur lockDoc
+	if getErr := coll.FindOne(ctx, bson.M{"_id": key}).Decode(&cur); getErr != nil {
+		return false, 300 * time.Millisecond, nil
+	}
+	left := time.Until(cur.ExpireAt)
+	if left < 200*time.Millisecond {
+		left = 200 * time.Millisecond
+	}
+	return false, left, nil
+}
+
+func mongoRenew(ctx context.Context, coll *mongo.Collection, key, owner string, ttl time.Duration) error {
+	now := time.Now()
+	res := coll.FindOneAndUpdate(
+		ctx,
+		bson.M{"_id": key, "owner": owner},
+		bson.M{"$set": bson.M{"expireAt": now.Add(ttl)}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+	var d lockDoc
+	return res.Decode(&d)
 }

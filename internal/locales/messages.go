@@ -21,46 +21,78 @@ func Init() {
 	// 🚀 Start
 	message.SetString(LangEN, "start_message", `
 		<b>Letters & Numbers — what’s inside</b>
-		
+
 		• 💻 <b>Coworking</b>
-		• ☕ <b>Coffee bar</b>
+		• ☕️ <b>LAN Bar</b>
 		• ✨ <b>Event venue</b>
 
-		<i>Tip:</i> check <a>/about</a> for locations and house rules.
+		<i>Tip:</i> check <b>/about</b> for locations and house rules.
 
-		<b>Choose a command</b>:
-		• <a>/start</a> — restart
-		• <a>/booking</a> — book your first visit 🎁✨
-		• <a>/wifi</a> — get the Wi-Fi password
-		• <a>/meetingroom</a> — book a meeting room
-		• <a>/printout</a> — send docs to print
-		• <a>/events</a> — events info
-		• <a>/menu</a> — bar menu 🍷
-		• <a>/about</a> — about & map
-		• <a>/language</a> — change language
-		• <a>/bar</a> — bar menu
-	`)
+		<b>Choose a command</b>
+
+		<b>Work & bookings</b>
+		• /booking — book your first visit 🎁✨
+		• /meetingroom — book a meeting room
+
+		<b>Tools</b>
+		• /wifi — get the Wi-Fi password
+		• /printout — send docs to print
+
+		<b>Bar</b>
+		• /bar — coffee bar (menu & orders). <i>Full menu:</i> <b>/menu</b> 🍷
+
+		<b>Info</b>
+		• /events — events info
+		• /about — about & map
+		• /language — change language
+		• /kotolog — 🐱 kotolog
+		• /start — restart
+
+		<b>Support us</b>
+		• /donation — donate to the project
+		`,
+	)
+
+	message.SetString(LangEN, "kotolog_btn_copy_card", "📋 Copy card number")
+	message.SetString(LangEN, "kotolog_copy_msg",
+		"Here is the number — long-press to copy:\n<code>%s</code>")
+
+	message.SetString(LangEN, "kotolog_donate_note",
+		"💛 <b>How to support</b>\n" +
+		"You can send a donation to the card <code>%s</code>.\n" +
+		"Please include <code>lan cats</code> in the payment title so we know it’s for the cats. Thank you 🐾")
 
 	message.SetString(LangRU, "start_message", `
 		<b>Letters & Numbers — что внутри</b>
-		
-		• 💻 <b>Coworking</b>
-		• ☕ <b>Coffee bar</b>
-		• ✨ <b>Event venue</b>
 
-		<i>Подсказка:</i> загляните в <a>/about</a> — там адреса и правила.
+		• 💻 <b>Коворкинг</b>
+		• ☕️ <b>LAN Bar</b>
+		• ✨ <b>Площадка для событий</b>
 
-		<b>Выберите команду</b>:
-		• <a>/start</a> — перезапуск
-		• <a>/booking</a> — забронировать первый визит 🎁✨
-		• <a>/wifi</a> — получить пароль Wi-Fi
-		• <a>/meetingroom</a> — переговорка
-		• <a>/printout</a> — отправить на печать
-		• <a>/events</a> — события
-		• <a>/menu</a> — барное меню 🍷
-		• <a>/about</a> — о пространстве и схема
-		• <a>/language</a> — сменить язык
-		• <a>/bar</a> — барное меню
+		<i>Подсказка:</i> в <b>/about</b> — адреса и правила.
+
+		<b>Команды</b>
+
+		<b>Работа и брони</b>
+		• /booking — первая бронь 🎁✨
+		• /meetingroom — переговорка
+
+		<b>Инструменты</b>
+		• /wifi — пароль Wi-Fi
+		• /printout — печать документов
+
+		<b>Бар</b>
+		• /bar — бар (заказы и меню). <i>Полное меню:</i> <b>/menu</b> 🍷
+
+		<b>Инфо</b>
+		• /events — события
+		• /about — инфо и карта
+		• /language — язык
+		• /kotolog — 🐱 котолог
+		• /start — перезапуск
+
+		<b>Поддержите нас</b>
+		• /donation — поддержать проект
 	`)
 
 	// Wi-Fi
@@ -213,6 +245,18 @@ func Init() {
 	message.SetString(LangRU, "unknown_command", "❓ Неизвестная команда: %s\nДоступные команды: %s")
 	message.SetString(LangEN, "unknown_command", "❓ Unknown command: %s\nAvailable commands: %s")
 
+	message.SetString(LangRU, "kotolog_btn_copy_card", "📋 Скопировать номер")
+	message.SetString(LangRU, "kotolog_copy_msg",
+		"Вот номер — удерживайте, чтобы скопировать:\n<code>%s</code>")
+
+	message.SetString(LangRU, "kotolog_donate_note",
+		"💛 <b>Как поддержать</b>\n" +
+		"Можно оставить донат на карту <code>%s</code>.\n" +
+		"Пожалуйста, укажите в названии платежа <code>lan cats</code> — так мы поймём, что это на котиков. Спасибо 🐾")
+
+	message.SetString(LangRU, "kotolog_btn_back", "← Назад")
+	message.SetString(LangRU, "kotolog_btn_home", "🏠 Домой") // или "На главную"
+
 
 	message.SetString(LangRU, "kotolog_intro", `
 		<b>КОТОЛОГ 🐱</b>
@@ -230,14 +274,25 @@ func Init() {
 	message.SetString(LangRU, "kotolog_link_photo", "Фото")
 	message.SetString(LangRU, "kotolog_city", "Город")
 	message.SetString(LangRU, "kotolog_contacts", "Контакты волонтёров")
-	message.SetString(LangRU, "kotolog_help_text", `
-		<b>Как помочь котикам</b>
-		1) Благотворительный книжный своп — приносите книги, донаты идут котикам.
-		2) Лекции в поддержку котиков — вход по донату.
-		3) Книжная полочка — берите книги за пожертвование.
-		4) Отложенные напитки — оплачиваете напиток заранее, и поддерживаете хвостиков.`)
+	message.SetString(LangRU, "kotolog_help_text", `<b>Как помочь котикам 🐾😺</b>
 
+1) 😺📚 <b>Книжный своп</b> — приносите книги, которые уже не нужны. Пожертвования за обмен идут на корм и лечение котиков. 🐈
+2) 😺🎤 <b>Лекции и беседы</b> — формат «сколько не жалко». Все средства направляем на поддержку котиков. 🐱
+3) 😺📚 <b>Книжная полка</b> — берите книгу за донат любой суммы. Так мы поддерживаем полку и хвостатых. 🐈‍⬛
+4) 😺☕️ <b>Отложенные напитки</b> — предоплатите чай/кофе для кого-то; деньги идут котикам. 🐾
 
+Больше о наших проектах — @lan_yerevan. Будем рады пообщаться! 😺`)
+	message.SetString(LangRU, "kotolog_btn_more_about", "Подробнее о %s")
+	message.SetString(LangRU, "kotolog_btn_back_to_list", "← Назад к списку")
+
+// Kotolog flags
+
+message.SetString(LangRU, "kotolog_flag_sterilized", "стерилизован(а)")
+message.SetString(LangRU, "kotolog_flag_vaccinated", "вакцинирован(а)")
+	// внутри func Init()
+	message.SetString(LangEN, "kotolog_btn_back", "← Back")
+	message.SetString(LangEN, "kotolog_btn_home", "🏠 Home")
+	
 	message.SetString(LangEN, "kotolog_intro", `
 		<b>KOTOLOG 🐱</b>
 		Cats looking for a loving home.
@@ -254,68 +309,255 @@ func Init() {
 	message.SetString(LangEN, "kotolog_link_photo", "Photo")
 	message.SetString(LangEN, "kotolog_city", "City")
 	message.SetString(LangEN, "kotolog_contacts", "Volunteer contacts")
-	message.SetString(LangEN, "kotolog_help_text", `
-		<b>How to help</b>
-		1) Charity book swap — bring books, donations help cats.
-		2) Talks — pay what you wish, proceeds go to cats.
-		3) Bookshelf — take a book for a donation.
-		4) Suspended drinks — prepay a drink, support cats.`)
+	message.SetString(LangEN, "kotolog_help_text", `<b>How to help 🐾😺</b>
 
+1) 😺📚 <b>Charity book swap</b> — bring books you no longer need. Donations for every swap help pay for food and treatment for cats. 🐈
+2) 😺🎤 <b>Talks</b> — pay what you wish. All proceeds go to support cats and their care. 🐱
+3) 😺📚 <b>Bookshelf</b> — take a book for a donation of any size. Your support keeps the shelf alive. 🐈‍⬛
+4) 😺☕️ <b>Suspended drinks</b> — prepay a drink for someone; the money goes to cats. 🐾
 
-			// ===== Russian =====
-	message.SetString(LangRU, "bar_welcome",           "Привет! Это бар. Сначала выберите позиции из меню 👇")
-	message.SetString(LangRU, "bar_cart_empty",        "Корзина пуста.")
-	message.SetString(LangRU, "bar_cart_title",        "Корзина")
-	message.SetString(LangRU, "bar_added",             "Добавлено в корзину")
-	message.SetString(LangRU, "bar_removed",           "Убрано из корзины")
-	message.SetString(LangRU, "bar_cart_cleared",      "Корзина очищена.")
+More about our projects — @lan_yerevan. We’ll be happy to chat! 😺`)
+	message.SetString(LangEN, "kotolog_btn_more_about", "More about %s")
 
-	message.SetString(LangRU, "bar_ask_name",          "Как вас зовут? Напишите в одном сообщении.")
-	message.SetString(LangRU, "bar_ask_name_hint",     "Пожалуйста, напишите имя текстом.")
-	message.SetString(LangRU, "bar_ask_serve",         "Как подать заказ?")
-	message.SetString(LangRU, "bar_ask_serve_hint",    "Нажмите кнопку ниже, чтобы выбрать способ подачи.")
-	message.SetString(LangRU, "bar_ask_zone",          "Выберите зону для подачи:")
+	message.SetString(LangEN, "kotolog_btn_back_to_list", "← Back to list")
 
-	message.SetString(LangRU, "bar_order_cancelled",   "Оформление заказа отменено.")
-	message.SetString(LangRU, "bar_buyer_is",          "👤 Заказчик: <b>%s</b>")
-	message.SetString(LangRU, "bar_order_sent",        "Заказ отправлен баристе. Мы напишем, когда будет готов!")
+	message.SetString(LangEN, "kotolog_flag_vaccinated", "vaccinated")
+	message.SetString(LangEN, "kotolog_flag_sterilized", "sterilized")
+
+	// ===== Bar — extra keys (RU) =====
+	message.SetString(LangRU, "bar_menu_title", "🍹 <b>Меню</b>")
+	message.SetString(LangRU, "bar_menu_hint", "Жмите +/− рядом с позицией. Корзина — кнопкой ниже.\n👁 Фото позиции — отдельным превью (само удалится через 8 сек).")
+	message.SetString(LangRU, "bar_cart_total", "Итого: <b>%d AMD</b>")
+	message.SetString(LangRU, "bar_item_price", "%s — %d AMD")
+	message.SetString(LangRU, "bar_price_qty", "%d AMD • ×%d")
+	message.SetString(LangRU, "bar_btn_photo", "👁 Фото")
+	message.SetString(LangRU, "bar_btn_cart", "🧺 Корзина")
+	message.SetString(LangRU, "bar_btn_clear", "🧹 Очистить")
+	message.SetString(LangRU, "bar_btn_checkout", "✅ Оформить")
+	message.SetString(LangRU, "bar_btn_back", "↩️ Назад")
+	message.SetString(LangRU, "bar_btn_cancel", "↩️ Отменить")
+	message.SetString(LangRU, "bar_btn_confirm", "✅ Подтвердить заказ")
+	message.SetString(LangRU, "bar_btn_edit_note", "✏️ Изменить комментарий")
+	message.SetString(LangRU, "bar_btn_delete_note", "🧽 Удалить комментарий")
+	message.SetString(LangRU, "bar_btn_add_note", "📝 Комментарий для баристы")
+	message.SetString(LangRU, "bar_in_cart_label", "В корзине: %d")
+
+	message.SetString(LangRU, "bar_zone_coworking_name", "Коворкинг")
+	message.SetString(LangRU, "bar_zone_cafe_name", "Кафе")
+	message.SetString(LangRU, "bar_zone_street_name", "Улица")
+
+	message.SetString(LangRU, "bar_serve_pickup_btn", "🧑‍🍳 Самовывоз с бара")
+	message.SetString(LangRU, "bar_serve_tozone_btn", "🛎 Принести в зону")
+
+	message.SetString(LangRU, "bar_serve_summary_label", "📍 Подача: <b>%s</b>")
+	message.SetString(LangRU, "bar_serve_pickup_label", "Самовывоз с бара")
+	message.SetString(LangRU, "bar_serve_tozone_label", "Принести в зону")
+	message.SetString(LangRU, "bar_serve_tozone_with_label", "Принести в зону — %s")
+	message.SetString(LangRU, "bar_not_specified", "не указано")
+
+	// уведомления гостю при готовности
+	message.SetString(LangRU, "bar_ready_pickup", "✅ Ваш заказ готов — можно забрать у бара.")
+	message.SetString(LangRU, "bar_ready_tozone_generic", "✅ Ваш заказ готов — скоро принесём к вам.")
+	message.SetString(LangRU, "bar_ready_tozone_zone", "✅ Ваш заказ готов — скоро принесём в %s.")
+	message.SetString(LangRU, "bar_ready_generic", "✅ Ваш заказ готов.")
+
+	// админская часть
+	message.SetString(LangRU, "bar_admin_ready_btn", "✅ Готово к выдаче")
+	message.SetString(LangRU, "bar_admin_issued_label", "✅ Выдано")
+	message.SetString(LangRU, "bar_admin_ack_ok", "Принято")
+	message.SetString(LangRU, "bar_admin_bad_button", "Некорректные данные кнопки")
+	message.SetString(LangRU, "bar_admin_user_notified", "✅ Гостю отправлено уведомление о готовности.")
+	message.SetString(LangRU, "bar_admin_notify_fail", "⚠️ Не удалось уведомить гостя (chat_id=%d): %v")
+
+	message.SetString(LangRU, "bar_admin_new_order_title", "🧾 <b>Новый заказ</b>")
+	message.SetString(LangRU, "bar_admin_order_no", "🔖 Номер: %s")
+	message.SetString(LangRU, "bar_admin_name", "👤 Имя: %s")
+	message.SetString(LangRU, "bar_line_item", "• %s × %d = %d AMD")
+	message.SetString(LangRU, "bar_admin_serve_line", "📍 Подача: %s")
+	message.SetString(LangRU, "bar_admin_questions_title", "❓ Уточнения:")
+	message.SetString(LangRU, "bar_admin_q_delivery", "• Самовывоз или поднос до стола? Если стол — номер/описание?")
+	message.SetString(LangRU, "bar_admin_q_disposables", "• Нужна ли одноразовая посуда/мешалка/сахар?")
+	message.SetString(LangRU, "bar_admin_q_time", "• Время подачи (ASAP / ко времени)?")
+	message.SetString(LangRU, "bar_admin_q_payment", "• Способ оплаты (нал/безнал)?")
+	message.SetString(LangRU, "bar_admin_contact_line", "• Бариста для связи: %s")
+	message.SetString(LangRU, "bar_admin_contact_meta", "• contact @%s, chat_id=%d")
+
+	// подтверждение для гостя
+	message.SetString(LangRU, "bar_order_number_label", "🔖 Номер заказа: <b>%s</b>")
+	message.SetString(LangRU, "bar_order_customer_label", "👤 Заказчик: <b>%s</b>")
+	message.SetString(LangRU, "bar_chat_label", "💬 Чат: %s")
+	message.SetString(LangRU, "bar_open_chat", "открыть чат")
 
 	// Промпты/тосты/тексты для комментария
-	message.SetString(LangRU, "bar_notes_toast_prompt","Напишите комментарий одним сообщением")
-	message.SetString(LangRU, "bar_notes_enter",       "Напишите комментарий для баристы (макс. 300 символов).")
-	message.SetString(LangRU, "bar_notes_saved",       "📝 Комментарий сохранён.")
-	message.SetString(LangRU, "bar_notes_deleted",     "Комментарий удалён")
-	message.SetString(LangRU, "bar_notes_unchanged",   "Без изменений")
+	message.SetString(LangRU, "bar_notes_toast_prompt", "Напишите комментарий одним сообщением")
+	message.SetString(LangRU, "bar_notes_enter", "Напишите комментарий для баристы (макс. 300 символов).")
+	message.SetString(LangRU, "bar_notes_saved", "📝 Комментарий сохранён.")
+	message.SetString(LangRU, "bar_notes_deleted", "Комментарий удалён")
+	message.SetString(LangRU, "bar_notes_unchanged", "Без изменений")
 
 	// Подписи в подтверждении
-	message.SetString(LangRU, "bar_contact_hint",      "☎️ Если что — пишите: %s")
-	message.SetString(LangRU, "bar_comment_label",     "📝 Комментарий:")
+	message.SetString(LangRU, "bar_contact_hint", "☎️ Если что — пишите: %s")
+	message.SetString(LangRU, "bar_comment_label", "📝 Комментарий:")
 
-	message.SetString(LangEN, "bar_welcome",           "Hi! This is the bar. First, pick items from the menu 👇")
-	message.SetString(LangEN, "bar_cart_empty",        "Your cart is empty.")
-	message.SetString(LangEN, "bar_cart_title",        "Cart")
-	message.SetString(LangEN, "bar_added",             "Added to cart")
-	message.SetString(LangEN, "bar_removed",           "Removed from cart")
-	message.SetString(LangEN, "bar_cart_cleared",      "Cart cleared.")
+	message.SetString(LangRU, "bar_ask_zone", "В какую зону принести заказ?")
+	message.SetString(LangRU, "bar_ask_serve", "Как подать заказ? Выберите способ обслуживания:")
 
-	message.SetString(LangEN, "bar_ask_name",          "What’s your name? Please send it in one message.")
-	message.SetString(LangEN, "bar_ask_name_hint",     "Please provide your name as text.")
-	message.SetString(LangEN, "bar_ask_serve",         "How should we serve your order?")
-	message.SetString(LangEN, "bar_ask_serve_hint",    "Use the buttons below to choose how to serve.")
-	message.SetString(LangEN, "bar_ask_zone",          "Choose a zone for delivery:")
+	message.SetString(LangRU, "bar_overview", `
+		<b>LAN Bar</b>
 
-	message.SetString(LangEN, "bar_order_cancelled",   "Order checkout cancelled.")
-	message.SetString(LangEN, "bar_buyer_is",          "👤 Customer: <b>%s</b>")
-	message.SetString(LangEN, "bar_order_sent",        "Order sent to the barista. We’ll ping you when it’s ready!")
+		• Кофе, чай, десерты, сезонные предложения  
+		• Заказывайте у стойки или в этом чате
+
+		<i>Полное меню:</i> <b>/menu</b> 🍷
+		`)
+
+		// ---------- RU ----------
+	// Home
+	message.SetString(language.Russian,
+		"Letters & Numbers is an independent project. We exist thanks to your support ❤️",
+		"Letters & Numbers — независимый проект. Мы живём за счёт вашей поддержки ❤️")
+	message.SetString(language.Russian, "How you can support:", "Как можно поддержать:")
+	message.SetString(language.Russian, "Attend our 🎟 events", "Приходить на наши 🎟 мероприятия")
+	message.SetString(language.Russian, "Grab a coffee and desserts at the ☕ bar", "Заглядывать в ☕ бар за кофе и десертами")
+	message.SetString(language.Russian, "Work from our 💻 coworking", "Работать у нас в 💻 коворкинге")
+	message.SetString(language.Russian, "Or send a 💳 card donation (add note “lan cats”)",
+		"Сделать 💳 донат на карту (в названии платежа указать «lan cats»)")
+	message.SetString(language.Russian, "Choose an option:", "Выберите вариант:")
+
+	// Buttons
+	message.SetString(language.Russian, "💳 Card donation", "💳 Донат на карту")
+	message.SetString(language.Russian, "🎟 Events", "🎟 Мероприятия")
+	message.SetString(language.Russian, "☕ Bar", "☕ Бар")
+	message.SetString(language.Russian, "💻 Coworking", "💻 Коворкинг")
+	message.SetString(language.Russian, "⬅️ Home", "⬅️ На главную")
+	message.SetString(language.Russian, "📋 Copy number", "📋 Скопировать номер")
+	message.SetString(language.Russian, "⬅️ Back", "⬅️ Назад")
+	message.SetString(language.Russian, "✅ Done", "✅ Готово")
+
+	// Card screen
+	message.SetString(language.Russian, "Card number:", "Номер карты:")
+	message.SetString(language.Russian,
+		"Important: add **lan cats** in payment note — this helps us understand the purpose.",
+		"Важно: в названии платежа укажите **lan cats** — так мы быстрее поймём назначение.")
+	message.SetString(language.Russian, "Thank you for your support! 🐱", "Спасибо за поддержку! 🐱")
+	message.SetString(language.Russian, "Copy the card number from the message above:", "Скопируйте номер карты из сообщения выше:")
+	message.SetString(language.Russian, "Thank you! /donation is always available.", "Спасибо! Раздел /donation всегда под рукой.")
+
+	// ===== Bar — extra keys (EN) =====
+	message.SetString(LangEN, "bar_menu_title", "🍹 <b>Menu</b>")
+	message.SetString(LangEN, "bar_menu_hint", "Tap +/− near an item. Open the cart with the button below.\n👁 Item photo — preview (auto-deletes in 8s).")
+	message.SetString(LangEN, "bar_cart_total", "Total: <b>%d AMD</b>")
+	message.SetString(LangEN, "bar_item_price", "%s — %d AMD")
+	message.SetString(LangEN, "bar_price_qty", "%d AMD • ×%d")
+	message.SetString(LangEN, "bar_btn_photo", "👁 Photo")
+	message.SetString(LangEN, "bar_btn_cart", "🧺 Cart")
+	message.SetString(LangEN, "bar_btn_clear", "🧹 Clear")
+	message.SetString(LangEN, "bar_btn_checkout", "✅ Checkout")
+	message.SetString(LangEN, "bar_btn_back", "↩️ Back")
+	message.SetString(LangEN, "bar_btn_cancel", "↩️ Cancel")
+	message.SetString(LangEN, "bar_btn_confirm", "✅ Confirm order")
+	message.SetString(LangEN, "bar_btn_edit_note", "✏️ Edit note")
+	message.SetString(LangEN, "bar_btn_delete_note", "🧽 Delete note")
+	message.SetString(LangEN, "bar_btn_add_note", "📝 Note for barista")
+	message.SetString(LangEN, "bar_in_cart_label", "In cart: %d")
+
+	message.SetString(LangEN, "bar_zone_coworking_name", "Coworking")
+	message.SetString(LangEN, "bar_zone_cafe_name", "Cafe")
+	message.SetString(LangEN, "bar_zone_street_name", "Street")
+
+	message.SetString(LangEN, "bar_serve_pickup_btn", "🧑‍🍳 Pick up at bar")
+	message.SetString(LangEN, "bar_serve_tozone_btn", "🛎 Bring to zone")
+
+	message.SetString(LangEN, "bar_serve_summary_label", "📍 Serving: <b>%s</b>")
+	message.SetString(LangEN, "bar_serve_pickup_label", "Pick up at the bar")
+	message.SetString(LangEN, "bar_serve_tozone_label", "Bring to zone")
+	message.SetString(LangEN, "bar_serve_tozone_with_label", "Bring to zone — %s")
+	message.SetString(LangEN, "bar_not_specified", "not specified")
+
+	message.SetString(LangEN, "bar_ready_pickup", "✅ Your order is ready — pick it up at the bar.")
+	message.SetString(LangEN, "bar_ready_tozone_generic", "✅ Your order is ready — we’ll bring it to you shortly.")
+	message.SetString(LangEN, "bar_ready_tozone_zone", "✅ Your order is ready — we’ll bring it to %s shortly.")
+	message.SetString(LangEN, "bar_ready_generic", "✅ Your order is ready.")
+
+	message.SetString(LangEN, "bar_admin_ready_btn", "✅ Ready to serve")
+	message.SetString(LangEN, "bar_admin_issued_label", "✅ Served")
+	message.SetString(LangEN, "bar_admin_ack_ok", "Accepted")
+	message.SetString(LangEN, "bar_admin_bad_button", "Invalid button payload")
+	message.SetString(LangEN, "bar_admin_user_notified", "✅ Guest has been notified.")
+	message.SetString(LangEN, "bar_admin_notify_fail", "⚠️ Failed to notify guest (chat_id=%d): %v")
+
+	message.SetString(LangEN, "bar_admin_new_order_title", "🧾 <b>New order</b>")
+	message.SetString(LangEN, "bar_admin_order_no", "🔖 No: %s")
+	message.SetString(LangEN, "bar_admin_name", "👤 Name: %s")
+	message.SetString(LangEN, "bar_line_item", "• %s × %d = %d AMD")
+	message.SetString(LangEN, "bar_admin_serve_line", "📍 Serving: %s")
+	message.SetString(LangEN, "bar_admin_questions_title", "❓ Clarify:")
+	message.SetString(LangEN, "bar_admin_q_delivery", "• Pickup or to table? If to table — number/description?")
+	message.SetString(LangEN, "bar_admin_q_disposables", "• Disposable cup/stirrer/sugar?")
+	message.SetString(LangEN, "bar_admin_q_time", "• Serving time (ASAP / specific time)?")
+	message.SetString(LangEN, "bar_admin_q_payment", "• Payment (cash/card)?")
+	message.SetString(LangEN, "bar_admin_contact_line", "• Barista contact: %s")
+	message.SetString(LangEN, "bar_admin_contact_meta", "• contact @%s, chat_id=%d")
+
+	message.SetString(LangEN, "bar_order_number_label", "🔖 Order number: <b>%s</b>")
+	message.SetString(LangEN, "bar_order_customer_label", "👤 Customer: <b>%s</b>")
+	message.SetString(LangEN, "bar_chat_label", "💬 Chat: %s")
+	message.SetString(LangEN, "bar_open_chat", "open chat")
 
 	// Prompts/toasts/notes texts
-	message.SetString(LangEN, "bar_notes_toast_prompt","Type your comment in a single message")
-	message.SetString(LangEN, "bar_notes_enter",       "Type a note for the barista (max 300 characters).")
-	message.SetString(LangEN, "bar_notes_saved",       "📝 Note saved.")
-	message.SetString(LangEN, "bar_notes_deleted",     "Note removed")
-	message.SetString(LangEN, "bar_notes_unchanged",   "No changes")
+	message.SetString(LangEN, "bar_notes_toast_prompt", "Type your comment in a single message")
+	message.SetString(LangEN, "bar_notes_enter", "Type a note for the barista (max 300 characters).")
+	message.SetString(LangEN, "bar_notes_saved", "📝 Note saved.")
+	message.SetString(LangEN, "bar_notes_deleted", "Note removed")
+	message.SetString(LangEN, "bar_notes_unchanged", "No changes")
 
 	// Labels in confirmation
-	message.SetString(LangEN, "bar_contact_hint",      "☎️ If needed — text: %s")
-	message.SetString(LangEN, "bar_comment_label",     "📝 Comment:")
+	message.SetString(LangEN, "bar_contact_hint", "☎️ If needed — text: %s")
+	message.SetString(LangEN, "bar_comment_label", "📝 Comment:")
+
+	// locales/init.go (фрагмент)
+	message.SetString(LangEN, "bar_ask_serve", "How should we serve your order? Choose a service type:")
+	message.SetString(LangEN, "bar_ask_zone", "Which zone should we bring it to?")
+
+	message.SetString(LangEN, "bar_overview", `
+		<b>LAN Bar</b>
+
+		• Coffee, tea, desserts, seasonal specials  
+		• Order at the counter or via this chat
+
+		<i>Explore the full menu:</i> <b>/menu</b> 🍷
+		`)
+
+
+// ---------- EN ----------
+	// Home
+	message.SetString(language.English,
+		"Letters & Numbers is an independent project. We exist thanks to your support ❤️",
+		"Letters & Numbers is an independent project. We exist thanks to your support ❤️")
+	message.SetString(language.English, "How you can support:", "How you can support:")
+	message.SetString(language.English, "Attend our 🎟 events", "Attend our 🎟 events")
+	message.SetString(language.English, "Grab a coffee and desserts at the ☕ bar", "Grab a coffee and desserts at the ☕ bar")
+	message.SetString(language.English, "Work from our 💻 coworking", "Work from our 💻 coworking")
+	message.SetString(language.English, "Or send a 💳 card donation (add note “lan cats”)",
+		"Or send a 💳 card donation (add note “lan cats”)")
+	message.SetString(language.English, "Choose an option:", "Choose an option:")
+
+	// Buttons
+	message.SetString(language.English, "💳 Card donation", "💳 Card donation")
+	message.SetString(language.English, "🎟 Events", "🎟 Events")
+	message.SetString(language.English, "☕ Bar", "☕ Bar")
+	message.SetString(language.English, "💻 Coworking", "💻 Coworking")
+	message.SetString(language.English, "⬅️ Home", "⬅️ Home")
+	message.SetString(language.English, "📋 Copy number", "📋 Copy number")
+	message.SetString(language.English, "⬅️ Back", "⬅️ Back")
+	message.SetString(language.English, "✅ Done", "✅ Done")
+
+	// Card screen
+	message.SetString(language.English, "Card number:", "Card number:")
+	message.SetString(language.English,
+		"Important: add **lan cats** in payment note — this helps us understand the purpose.",
+		"Important: add **lan cats** in payment note — this helps us understand the purpose.")
+	message.SetString(language.English, "Thank you for your support! 🐱", "Thank you for your support! 🐱")
+	message.SetString(language.English, "Copy the card number from the message above:", "Copy the card number from the message above:")
+	message.SetString(language.English, "Thank you! /donation is always available.", "Thank you! /donation is always available.")
 }
