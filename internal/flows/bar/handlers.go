@@ -25,13 +25,6 @@ const (
 	keyAwaitNotes = "bar:await_notes" // флаг: ждём текст комментария
 )
 
-var (
-	// stepBarHome  types.Step = "bar:home"
-	// stepAskServe types.Step = "bar:ask_serve"
-	// stepAskZone  types.Step = "bar:ask_zone"
-	// остальные шаги (stepHandle, stepAskName, stepConfirm, stepDone) объявлены в проекте
-)
-
 const (
 	baristaContact = "@LAN_Barista" // для текста клиенту
 	baristaMention = "@lan_barista" // для пинга в админском чате
@@ -648,10 +641,11 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 		return stepHandle, nil
 
 	case strings.HasPrefix(data, "bar:rmitem:"):
-		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "")
+		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, p.Sprintf("bar_removed"))
 		id := strings.TrimPrefix(data, "bar:rmitem:")
-		removeItem(s, id)
-		persistBarStateToUser(s)
+		if _, changed := addToCart(s, id, -1); changed {
+			persistBarStateToUser(s)
+		}
 		txt := renderCartText(s, d)
 		kb := cartKeyboard(d, s)
 		_ = ui.SendHTML(d.Bot, s.ChatID, txt, kb)
