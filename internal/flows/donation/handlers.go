@@ -1,4 +1,4 @@
-package flow
+package flows
 
 import (
 	"context"
@@ -9,22 +9,13 @@ import (
 	"github.com/mkokoulin/LAN-coworking-bot/internal/botengine"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/ui"
-	"golang.org/x/text/language"
-	"golang.org/x/text/message"
 )
 
-// -------- Константы флоу --------
-
-// Выбери реальную логику определения языка (например, из сессии).
-func userLang(_ *types.Session) language.Tag {
-	// TODO: верни language.English или language.Russian из твоего s.Locale / s.Lang
-	return language.Russian
-}
-
-// -------- Хендлеры --------
-
 func donationHome(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
-	// Роутинг: все donation:* приходят сюда
+	if ok, next := botengine.InterceptSlashNav(ev, func() { ackCallback(d, ev) }); ok {
+		return next, nil
+	}
+
 	if ev.Kind == botengine.EventCallback && strings.HasPrefix(ev.CallbackData, "donation:") {
 		switch ev.CallbackData {
 		case "donation:card":
@@ -34,37 +25,37 @@ func donationHome(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 		case "donation:done":
 			return donationDone(ctx, ev, d, s)
 		case "donation:home":
-			// просто отрисуем домашний экран ниже
+			// отрисуем экран ниже
 		default:
 			ackCallback(d, ev)
 		}
 	}
 
-	p := message.NewPrinter(userLang(s))
+	p := d.Printer(s.Lang)
 
 	text := strings.Join([]string{
-		p.Sprintf("Letters & Numbers is an independent project. We exist thanks to your support ❤️"),
+		p.Sprintf("donation_title"),
 		"",
-		p.Sprintf("How you can support:"),
-		"• " + p.Sprintf("Attend our 🎟 events"),
-		"• " + p.Sprintf("Grab a coffee and desserts at the ☕ bar"),
-		"• " + p.Sprintf("Work from our 💻 coworking"),
-		"• " + p.Sprintf("Or send a 💳 card donation (add note “lan cats”)"),
+		p.Sprintf("donation_howto"),
+		"• " + p.Sprintf("donation_opt_events"),
+		"• " + p.Sprintf("donation_opt_bar"),
+		"• " + p.Sprintf("donation_opt_cowork"),
+		"• " + p.Sprintf("donation_opt_card"),
 		"",
-		p.Sprintf("Choose an option:"),
+		p.Sprintf("donation_choose"),
 	}, "\n")
 
 	kb := ui.Inline(
 		ui.Row(
-			ui.Cb(p.Sprintf("💳 Card donation"), "donation:card"),
+			ui.Cb(p.Sprintf("donation_btn_card"), "donation:card"),
 		),
 		ui.Row(
-			ui.Cb(p.Sprintf("🎟 Events"), "/events"),
-			ui.Cb(p.Sprintf("☕ Bar"), "/bar"),
+			ui.CbCmd(p.Sprintf("donation_btn_events"), "events"),
+			ui.CbCmd(p.Sprintf("donation_btn_bar"), "bar"),
 		),
 		ui.Row(
-			ui.Cb(p.Sprintf("💻 Coworking"), "/booking"),
-			ui.Cb(p.Sprintf("⬅️ Home"), "/start"),
+			ui.CbCmd(p.Sprintf("donation_btn_cowork"), "booking"),
+			ui.CbCmd(p.Sprintf("donation_btn_home"), "start"),
 		),
 	)
 
@@ -79,25 +70,25 @@ func donationCard(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 	if ev.Kind == botengine.EventCallback {
 		ackCallback(d, ev)
 	}
-	p := message.NewPrinter(userLang(s))
+	p := d.Printer(s.Lang)
 
-	text := p.Sprintf("💳 Card donation") + "\n\n" +
-		p.Sprintf("Card number:") + "\n`" + cardNumber + "`\n\n" +
-		p.Sprintf("Important: add **lan cats** in payment note — this helps us understand the purpose.") + "\n\n" +
-		p.Sprintf("Thank you for your support! 🐱")
+	text := p.Sprintf("donation_btn_card") + "\n\n" +
+		p.Sprintf("donation_card_label") + "\n<code>" + cardNumber + "</code>\n\n" +
+		p.Sprintf("donation_card_note") + "\n\n" +
+		p.Sprintf("donation_thanks")
 
 	kb := ui.Inline(
 		ui.Row(
-			ui.Cb(p.Sprintf("📋 Copy number"), "donation:copied"),
-			ui.Cb(p.Sprintf("⬅️ Back"), "donation:home"),
+			ui.Cb(p.Sprintf("donation_btn_copy"), "donation:copied"),
+			ui.Cb(p.Sprintf("donation_btn_back"), "donation:home"),
 		),
 		ui.Row(
-			ui.Cb(p.Sprintf("✅ Done"), "donation:done"),
+			ui.Cb(p.Sprintf("donation_btn_done"), "donation:done"),
 		),
 	)
 
 	msg := tgbotapi.NewMessage(ev.ChatID, text)
-	msg.ParseMode = "Markdown"
+	msg.ParseMode = "HTML"
 	msg.ReplyMarkup = kb
 	_, _ = d.Bot.Send(msg)
 
@@ -108,11 +99,11 @@ func donationCopied(ctx context.Context, ev botengine.Event, d botengine.Deps, s
 	if ev.Kind == botengine.EventCallback {
 		ackCallback(d, ev)
 	}
-	p := message.NewPrinter(userLang(s))
+	p := d.Printer(s.Lang)
 
-	notice := p.Sprintf("Copy the card number from the message above:") + "\n`" + cardNumber + "`"
+	notice := p.Sprintf("donation_copy_hint") + "\n<code>" + cardNumber + "</code>"
 	n := tgbotapi.NewMessage(ev.ChatID, notice)
-	n.ParseMode = "Markdown"
+	n.ParseMode = "HTML"
 	_, _ = d.Bot.Send(n)
 
 	return DonationCard, nil
@@ -122,8 +113,8 @@ func donationDone(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 	if ev.Kind == botengine.EventCallback {
 		ackCallback(d, ev)
 	}
-	p := message.NewPrinter(userLang(s))
-	msg := tgbotapi.NewMessage(ev.ChatID, p.Sprintf("Thank you! /donation is always available."))
+	p := d.Printer(s.Lang)
+	msg := tgbotapi.NewMessage(ev.ChatID, p.Sprintf("donation_always"))
 	_, _ = d.Bot.Send(msg)
 	return DonationDone, nil
 }
@@ -139,7 +130,6 @@ func ackCallback(d botengine.Deps, ev botengine.Event) {
 }
 
 func callbackID(ev botengine.Event) string {
-	// 1) Если в Event есть метод CallbackID() string
 	if id := tryMethodString(ev, "CallbackID"); id != "" {
 		return id
 	}
@@ -147,7 +137,6 @@ func callbackID(ev botengine.Event) string {
 		return id
 	}
 
-	// 2) Пробуем поля по распространённым именам
 	v := reflect.ValueOf(ev)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -156,15 +145,12 @@ func callbackID(ev botengine.Event) string {
 		return ""
 	}
 
-	for _, name := range []string{
-		"CallbackQueryID", "CallbackID", "CallbackQueryId",
-	} {
+	for _, name := range []string{"CallbackQueryID", "CallbackID", "CallbackQueryId"} {
 		if f := v.FieldByName(name); f.IsValid() && f.Kind() == reflect.String {
 			return f.String()
 		}
 	}
 
-	// 3) Если внутри лежит tgbotapi.CallbackQuery — достаем ID оттуда
 	for _, name := range []string{"CallbackQuery", "TGCallback", "TgCallback"} {
 		if f := v.FieldByName(name); f.IsValid() && f.CanInterface() {
 			switch q := f.Interface().(type) {

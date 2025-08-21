@@ -1,4 +1,4 @@
-package flow
+package flows
 
 import (
 	"github.com/mkokoulin/LAN-coworking-bot/internal/botengine"

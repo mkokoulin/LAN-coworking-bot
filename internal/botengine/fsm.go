@@ -1,3 +1,4 @@
+// Path: internal/botengine/fsm.go  (файл где RunFSM)
 package botengine
 
 import (
@@ -17,17 +18,33 @@ const InternalContinue types.Step = "__internal:continue"
 func RunFSM(ctx context.Context, ev Event, reg *Registry, d Deps, s *types.Session) error {
 	GuardMaybeReset(ev, reg, s)
 
-	// небольшой лимит на внутренние "продолжить", чтобы не зациклиться
 	const maxInternalIters = 5
 
 	for it := 0; it < maxInternalIters; it++ {
 
-		// ✅ 0) Форс-вход по командам (перебивает любой текущий флоу)
+		// 0) Callback со слеш-командой → считаем навигацией по команде
+		if ev.Kind == EventCallback && strings.HasPrefix(ev.CallbackData, "/") {
+			// ACK, чтобы не висели "часики" на кнопке
+			if ev.CallbackQueryID != "" {
+				cb := tgbotapi.NewCallback(ev.CallbackQueryID, "")
+				_, _ = d.Bot.Request(cb)
+			}
+			cmd := ev.Command
+			if cmd == "" { // на всякий случай
+				cmd = normalizeCommand(ev.CallbackData)
+			}
+			if entry, ok := reg.commands[cmd]; ok {
+				s.Flow, s.Step = entry.Flow, entry.Step
+			}
+			// Переходим к отрисовке нового шага (тот же ev)
+			// не return — рендерим ниже как обычный шаг
+		} else
+		// ✅ 0.5) Форс-вход по командам из сообщений
 		if ev.Kind == EventCommand {
 			if entry, ok := reg.ResolveEntry(ev); ok {
 				s.Flow, s.Step = entry.Flow, entry.Step
 			} else {
-				// Неизвестная команда — мягко сообщаем и НЕ ломаем текущий сценарий
+				// Неизвестная команда — мягко сообщаем и не ломаем текущий сценарий
 				cmds := make([]string, 0, len(reg.commands))
 				for c := range reg.commands {
 					cmds = append(cmds, "/"+c)
@@ -47,7 +64,6 @@ func RunFSM(ctx context.Context, ev Event, reg *Registry, d Deps, s *types.Sessi
 			if entry, ok := reg.ResolveEntry(ev); ok {
 				s.Flow, s.Step = entry.Flow, entry.Step
 			} else {
-				// не нашли, мягко выходим
 				return nil
 			}
 		}
@@ -70,21 +86,18 @@ func RunFSM(ctx context.Context, ev Event, reg *Registry, d Deps, s *types.Sessi
 			return err
 		}
 
-		// 4) Обработка служебного шага — "продолжить немедленно"
+		// 4) InternalContinue
 		if next == InternalContinue {
-			// если хендлер не поменял шаг/флоу — нечего продолжать
 			if s.Flow == prevFlow && s.Step == prevStep {
 				return nil
 			}
-			// иначе крутим следующую итерацию с тем же событием
 			continue
 		}
 
-		// 5) Обычный переход на следующий шаг
+		// 5) Обычный переход
 		s.Step = next
 		return nil
 	}
 
-	// превысили лимит внутренних итераций — на всякий случай выходим
 	return nil
 }

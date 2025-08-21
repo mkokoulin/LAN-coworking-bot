@@ -1,4 +1,4 @@
-package flow
+package flows
 
 import (
 	"github.com/mkokoulin/LAN-coworking-bot/internal/botengine"
@@ -17,8 +17,5 @@ func Register(reg *botengine.Registry) {
 		BookDone: done,
 	})
 
-	// вход по команде
 	reg.RegisterCommand("booking", botengine.FlowEntry{Flow: FlowBooking, Step: BookInfo})
-	// можно алиас:
-	// reg.RegisterCommand("book", botengine.FlowEntry{Flow: FlowBooking, Step: BookInfo})
 }
