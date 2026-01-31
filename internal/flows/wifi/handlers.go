@@ -44,7 +44,7 @@ func waitChoice(ctx context.Context, ev botengine.Event, d botengine.Deps, s *ty
 			s.Flow, s.Step = "", ""
 			return WifiDone, nil
 		}
-		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("ask_confirmation"))
+		_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("wifi_ask_confirmation"))
 		return WifiWaitCode, nil
 	}
 
