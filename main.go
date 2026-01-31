@@ -28,6 +28,12 @@ import (
 )
 
 func main() {
+	go func() {
+		_ = http.ListenAndServe(":8080"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		}))
+	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
