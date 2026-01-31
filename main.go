@@ -29,7 +29,7 @@ import (
 
 func main() {
 	go func() {
-		_ = http.ListenAndServe(":8080"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = http.ListenAndServe(":"+os.Getenv("PORT"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte("ok"))
 		}))
 	}()
