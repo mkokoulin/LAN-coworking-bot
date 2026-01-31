@@ -26,10 +26,12 @@ type Config struct {
 	MongoDB                string                     `env:"MONGO_DB" json:"MONGO_DB"`
 	MongoLocksColl         string                     `env:"MONGO_LOCKS_COLL" json:"MONGO_LOCKS_COLL"`
 
-	// Важно: используем для отправки новых заказов
-	AdminUserID   int64 `env:"ADMIN_USER_ID" json:"ADMIN_USER_ID"` // опционально
+	AdminUserID   int64 `env:"ADMIN_USER_ID" json:"ADMIN_USER_ID"`
 	OrdersChatId  int64 `env:"ORDERS_CHAT_ID" json:"ORDERS_CHAT_ID"`
-	OrdersTopicId int   `env:"ORDERS_TOPIC_ID" json:"ORDERS_TOPIC_ID"` // если чат с темами (форум)
+	OrdersTopicId int   `env:"ORDERS_TOPIC_ID" json:"ORDERS_TOPIC_ID"`
+
+	HaysellBaseURL string   `env:"HAYSELL_BASE_URL" json:"HAYSELL_BASE_URL"`
+	HaysellAPIKey string   `env:"HAYSELL_API_KEY" json:"HAYSELL_API_KEY"`
 }
 
 func New() (*Config, error) {
@@ -69,6 +71,9 @@ func New() (*Config, error) {
 	if cfg.MongoURI, err = get("MONGO_URI"); err != nil { return nil, err }
 	if cfg.MongoDB, err = get("MONGO_DB"); err != nil { return nil, err }
 	if cfg.MongoLocksColl, err = get("MONGO_LOCKS_COLL"); err != nil { return nil, err }
+
+	if cfg.HaysellBaseURL, err = get("HAYSELL_BASE_URL"); err != nil { return nil, err }
+	if cfg.HaysellAPIKey, err = get("HAYSELL_API_KEY"); err != nil { return nil, err }
 
 	// AdminChatId
 	if v, err := get("ADMIN_CHAT_ID"); err != nil {

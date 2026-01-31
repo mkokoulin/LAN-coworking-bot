@@ -18,7 +18,5 @@ func Register(reg *botengine.Registry) {
 		CoworkingHome: coworkingHome,
 	})
 
-	// Команды/алиасы
 	reg.RegisterCommand("coworking", botengine.FlowEntry{Flow: FlowCoworking, Step: CoworkingHome})
-	reg.RegisterCommand("коворкинг", botengine.FlowEntry{Flow: FlowCoworking, Step: CoworkingHome})
 }

@@ -23,8 +23,8 @@ func Register(reg *botengine.Registry) {
 
 	reg.RegisterFlow(FlowDonation, map[types.Step]botengine.StepHandler{
 		DonationHome:   donationHome,
-		DonationCard:   donationCard,
-		DonationCopied: donationCopied,
+		// DonationCard:   donationCard,
+		// DonationCopied: donationCopied,
 		DonationDone:   donationDone,
 	})
 

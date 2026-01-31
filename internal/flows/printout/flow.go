@@ -17,4 +17,6 @@ func Register(reg *botengine.Registry) {
 		PrintoutShow: showInfo,
 		PrintoutDone: done,
 	})
+
+	reg.RegisterCommand("printout", botengine.FlowEntry{Flow: FlowPrintout, Step: PrintoutShow})
 }

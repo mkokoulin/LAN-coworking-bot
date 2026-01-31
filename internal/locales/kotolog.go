@@ -2,7 +2,7 @@ package locales
 
 func registerKotolog() {
 	set(LangEN, "kotolog_btn_copy_card", "📋 Copy card number")
-	set(LangRU, "kotolog_btn_copy_card", "📋 Скопировать номер")
+	set(LangRU, "kotolog_btn_copy_card", "📋 Скопировать номер карты")
 
 	set(LangEN, "kotolog_copy_msg", "Here is the number — long-press to copy:\n<code>%s</code>")
 	set(LangRU, "kotolog_copy_msg", "Вот номер — удерживайте, чтобы скопировать:\n<code>%s</code>")

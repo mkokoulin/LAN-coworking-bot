@@ -24,19 +24,12 @@ const (
 )
 
 type Item struct {
-	ID       string
-	Title    string
-	PriceAMD int
-	PhotoURL string
-}
-
-func getMenu() []Item {
-	return []Item{
-		{ID: "latte", Title: "Латте 300мл", PriceAMD: 1800, PhotoURL: "https://imgs.coffeemania.ru/822087/c848883d619a1ef/1200x800.jpg"},
-		{ID: "americano", Title: "Американо 250мл", PriceAMD: 1200, PhotoURL: "https://imgs.coffeemania.ru/822087/c848883d619a1ef/1200x800.jpg"},
-		{ID: "cookie", Title: "Печенье с шоколадом", PriceAMD: 900, PhotoURL: "https://imgs.coffeemania.ru/822087/c848883d619a1ef/1200x800.jpg"},
-		{ID: "tea", Title: "Чай жасминовый", PriceAMD: 1000, PhotoURL: "https://imgs.coffeemania.ru/822087/c848883d619a1ef/1200x800.jpg"},
-	}
+	ID         string
+	Title      string
+	PriceAMD   int
+	PhotoURL   string
+	CategoryID string
+	ShortName string
 }
 
 func Register(reg *botengine.Registry) {

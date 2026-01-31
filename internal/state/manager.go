@@ -11,8 +11,6 @@ type Manager interface {
     Set(chatID int64, state *types.Session)
     Delete(chatID int64)
     ListSubscribedChatIDs() ([]int64, error)
-
-    // ➕ добавляем для персонального расписания
     ListDue(now time.Time) ([]int64, error)
     SetNextDigestAt(chatID int64, next time.Time) error
 }

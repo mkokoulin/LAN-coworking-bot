@@ -65,7 +65,8 @@ func coworkingHome(ctx context.Context, ev botengine.Event, d botengine.Deps, s 
 		),
 		ui.Row(
 			ui.Cb(p.Sprintf("coworking_btn_events"), "/events"),
-			ui.Cb(p.Sprintf("coworking_btn_bar"), "/bar"),
+			// @TODO bar flow is not implemented yet
+			// ui.Cb(p.Sprintf("coworking_btn_bar"), "/bar"),
 		),
 		ui.Row(
 			ui.Cb(p.Sprintf("coworking_btn_about"), "/about"),

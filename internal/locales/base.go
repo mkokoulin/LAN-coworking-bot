@@ -43,4 +43,5 @@ func Init() {
 	registerBarGuest()
 	registerBarAdmin()
 	registerCoworking()
+	registerMenu()
 }

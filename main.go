@@ -27,11 +27,6 @@ import (
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
 
-// ENV-переменные управления:
-//   LOCK_DISABLE=1            — полностью отключить лок (на свой страх и риск)
-//   LOCK_FORCE=1              — форс-сброс текущего лока на старте
-//   DROP_PENDING_UPDATES=1    — при чистке вебхука дропнуть очередь апдейтов
-
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -44,14 +39,12 @@ func main() {
 		log.Fatalf("[boot] load config: %v", err)
 	}
 
-	// 2) Telegram Bot (создаём клиент, НО ничего у Telegram не дёргаем до лока)
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
 		log.Fatalf("[boot] telegram: %v", err)
 	}
 	log.Printf("Bot started as @%s (debug=%v)", bot.Self.UserName, bot.Debug)
 
-	// 3) Монго-лок (опционально): гарантируем одного поллера getUpdates на токен
 	lockDisabled := os.Getenv("LOCK_DISABLE") == "1"
 	lockID := "telegram_updates_lock:" + bot.Self.UserName
 	var release func() error = func() error { return nil }
@@ -84,7 +77,7 @@ func main() {
 		}
 
 		// Ждём лок (TTL=3m, heartbeat каждые 90s)
-		release, err = mongoWaitAcquire(ctx, coll, lockID, 3*time.Minute)
+		release, err = mongoWaitAcquire(ctx, coll, lockID, 10*time.Second)
 		if err != nil {
 			log.Fatalf("[singleton] cannot acquire lock: %v", err)
 		}
@@ -94,33 +87,27 @@ func main() {
 		log.Println("[singleton] LOCK_DISABLE=1 — запускаемся БЕЗ лока (не запускай второй экземпляр!)")
 	}
 
-	// 4) Чистим webhook уже после (или сразу, если лок отключен)
 	dropPending := os.Getenv("DROP_PENDING_UPDATES") == "1"
 	if _, err := bot.Request(tgbotapi.DeleteWebhookConfig{DropPendingUpdates: dropPending}); err != nil {
 		log.Printf("[boot] deleteWebhook warn: %v", err)
 	}
 
-	// 5) Сервисы
 	svcs, err := initServices(ctx, cfg)
 	if err != nil {
 		log.Fatalf("[boot] services: %v", err)
 	}
 
-	// 6) State manager
 	stateMgr, err := state.NewMongoManager(ctx, cfg.MongoURI, "coworking_bot", "user_states")
 	if err != nil {
 		log.Fatalf("[boot] state: %v", err)
 	}
 
-	// 7) Registry + flows
 	reg := botengine.NewRegistry(stateMgr)
 	flows.RegisterAll(reg)
 
-	// 8) Dispatcher
 	dispatcher := botengine.NewDispatcher(bot, cfg, svcs, reg)
 	dispatcher.AttachPrinter(func(lang string) *message.Printer { return locales.Printer(lang) })
 
-	// 8.1) (опционально) проверяем OrdersChatId и права бота
 	if cfg.OrdersChatId != 0 {
 		if chat, err := bot.GetChat(tgbotapi.ChatInfoConfig{
 			tgbotapi.ChatConfig{ChatID: cfg.OrdersChatId},
@@ -148,7 +135,6 @@ func main() {
 		}
 	}
 
-	// 9) Graceful shutdown
 	go func() {
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
@@ -157,7 +143,6 @@ func main() {
 		cancel()
 	}()
 
-	// 10) Поехали
 	go botengine.RunWeeklyEvents(ctx, dispatcher, reg, stateMgr, cfg)
 	dispatcher.Run(ctx)
 	log.Println("Bye 👋")
@@ -174,13 +159,21 @@ func initServices(ctx context.Context, cfg *config.Config) (types.Services, erro
 	}
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
+
 	eventsService := services.NewEventsService(httpClient, "https://shark-app-wrcei.ondigitalocean.app/api/events")
 	subs := services.NewMemSubscriptions()
+
+	services.NewHaysellBarService(
+		httpClient,
+		cfg.HaysellBaseURL,
+		cfg.HaysellAPIKey,
+	)
 
 	return types.Services{
 		CoworkersSheets: coworkersSheets,
 		Events:          eventsService,
 		Subscriptions:   subs,
+		// BarCatalog:      barCatalog,
 	}, nil
 }
 

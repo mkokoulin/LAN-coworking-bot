@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,6 +38,60 @@ const (
 	keyCmdHistory    = "user:command_history"
 	keyOrdersHistory = "bar:orders_history"
 )
+
+const (
+    keyCurrentCategory = "bar:category" // выбранная категория
+)
+
+var (
+	barCategories      []BarCategory
+	barCategoriesByID  = map[string]BarCategory{}
+	barCategoriesReady bool
+
+	barItemsByID  map[string]Item    
+)
+
+type ProductItem struct {
+    ID          int    `json:"id"`
+    ImagePath   string `json:"imagePath"`
+    ItemName    string `json:"itemName"`
+    ShortName   string `json:"shortName"`
+    Price       int    `json:"price"`
+    Category    string `json:"category"`
+    Description string `json:"description"`
+    Balance     int    `json:"balance"`
+}
+
+type CategoryItem struct { 
+	Sort int `json:"sort" bson:"sort"` 
+	Deleted bool `json:"deleted" bson:"deleted"`
+	Additional string `json:"additional" bson:"additional"` 
+	Id int `json:"id" bson:"id"` 
+	NameRu string `json:"nameRu" bson:"name_ru"` 
+	MetaDescEn string `json:"metaDescEn" bson:"meta_desc_en"` 
+	MetaTitleRu string `json:"metaTitleRu" bson:"meta_title_ru"` 
+	ExtraCategories string `json:"extraCategories" bson:"extra_categories"`
+	Recomended string `json:"recomended" bson:"recomended"` 
+	ShortUrlEn string `json:"shortUrlEn" bson:"short_url_en"` 
+	MetaKeyEn string `json:"metaKeyEn" bson:"meta_key_en"` 
+	MetaDescRu string `json:"metaDescRu" bson:"meta_desc_ru"` 
+	Logo string `json:"logo" bson:"logo"` 
+	ShortUrlRu string `json:"shortUrlRu" bson:"short_url_ru"` 
+	MetaDesc string `json:"metaDesc" bson:"meta_desc"` 
+	MetaKeyRu string `json:"metaKeyRu" bson:"meta_key_ru"` 
+	CatId int `json:"catId" bson:"cat_id"` 
+	Name string `json:"name" bson:"name"`
+	NameEn string `json:"nameEn" bson:"name_en"` 
+	ParentId int `json:"parentId" bson:"parent_id"` 
+	Level int `json:"level" bson:"level"` 
+	ShortUrl string `json:"shortUrl" bson:"short_url"` 
+	MetaKey string `json:"metaKey" bson:"meta_key"` 
+	Image string `json:"image" bson:"image"` 
+	MetaTitle string `json:"metaTitle" bson:"meta_title"` 
+	MetaTitleEn string `json:"metaTitleEn" bson:"meta_title_en"` 
+	Active int `json:"active" bson:"active"` 
+	IsTop int `json:"isTop" bson:"is_top"`
+}
 
 // ----- модели персиста -----
 
@@ -73,6 +129,454 @@ type BarOrder struct {
 	Zone      string         `json:"zone"`
 	Notes     string         `json:"notes,omitempty"`
 	CreatedAt int64          `json:"created_at"`
+}
+
+type BarCategory struct {
+	ID   string
+	Name string
+	Sort int
+}
+
+type haysellProduct struct {
+    ID          int    `json:"id"`
+    ImagePath   string `json:"imagePath"`
+    ItemName    string `json:"itemName"`
+    ShortName   string `json:"shortName"`
+    Price       int    `json:"price"`
+    Category    string `json:"category"`
+    Description string `json:"description"`
+    Balance     int    `json:"balance"`
+}
+
+var (
+    // barMenuOnce   sync.Once
+    barMenuErr    error
+    barItemsAll   []Item
+    barItemsByCat map[string][]Item
+)
+
+func allowedCategoryIDs() map[string]struct{} {
+	m := make(map[string]struct{}, len(barCategories))
+	for _, c := range barCategories {
+		m[c.ID] = struct{}{}
+	}
+	return m
+}
+
+func buildBarMenuFromProducts(products []ProductItem) {
+	barItemsAll = make([]Item, 0, len(products))
+	barItemsByCat = make(map[string][]Item)
+	barItemsByID = make(map[string]Item)
+
+	// множество разрешённых категорий
+	allowed := allowedCategoryIDs()
+	useFilter := len(allowed) > 0 // если категорий ещё нет — не фильтруем, чтобы не сломать старое поведение
+
+	for _, p := range products {
+		// если категории уже загружены — берём только продукты из этих категорий
+		if useFilter {
+			if _, ok := allowed[p.Category]; !ok {
+				continue
+			}
+		}
+
+		it := Item{
+			ID:         strconv.Itoa(p.ID),
+			Title:      p.ItemName,
+			PriceAMD:   p.Price,
+			PhotoURL:   p.ImagePath,
+			CategoryID: p.Category,
+			ShortName: p.ShortName,
+		}
+
+		barItemsAll = append(barItemsAll, it)
+		barItemsByCat[it.CategoryID] = append(barItemsByCat[it.CategoryID], it)
+		barItemsByID[it.ID] = it
+	}
+
+	// сортируем общий список по названию
+	sort.Slice(barItemsAll, func(i, j int) bool {
+		return barItemsAll[i].ShortName < barItemsAll[j].ShortName
+	})
+
+	// сортируем внутри каждой категории
+	for catID, items := range barItemsByCat {
+		sort.Slice(items, func(i, j int) bool {
+			return items[i].ShortName < items[j].ShortName
+		})
+		barItemsByCat[catID] = items
+	}
+}
+
+
+
+// func ensureBarMenuLoaded(ctx context.Context, d botengine.Deps) {
+// 	barMenuOnce.Do(func() {
+// 		prods, err := fetchProducts(ctx, d) // ← []ProductItem
+// 		if err != nil {
+// 			barMenuErr = err
+// 			log.Printf("[bar] fetchProducts failed: %v", err)
+// 			return
+// 		}
+// 		buildBarMenuFromProducts(prods) // ← теперь принимает []ProductItem
+// 	})
+// }
+
+// func ensureBarDataLoaded(ctx context.Context, d botengine.Deps) error {
+// 	// Сначала продукты и меню
+// 	ensureBarMenuLoaded(ctx, d)
+// 	if barMenuErr != nil {
+// 		// если не смогли подтянуть продукты — логируем, но даём шанс категориям
+// 		log.Printf("[bar] failed to load bar menu: %v", barMenuErr)
+// 	}
+
+// 	// Потом категории (они уже могут видеть barItemsByCat)
+// 	if err := ensureBarCategoriesLoaded(ctx, d); err != nil {
+// 		return err
+// 	}
+
+// 	return barMenuErr
+// }
+
+func fetchCategoriesByParentId(ctx context.Context, d botengine.Deps) ([]CategoryItem, error) {
+	baseURL := strings.TrimRight(d.Cfg.HaysellBaseURL, "/")
+	if baseURL == "" {
+		return nil, fmt.Errorf("HAYSELL_BASE_URL is empty in config")
+	}
+
+	u := baseURL + "/api/categories?parentId=1240"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, fmt.Errorf("new request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+
+	var cats []CategoryItem
+	if err := json.NewDecoder(resp.Body).Decode(&cats); err != nil {
+		return nil, fmt.Errorf("decode categories: %w", err)
+	}
+
+	sort.Slice(cats, func(i, j int) bool {
+		if cats[i].Sort == cats[j].Sort {
+			nameI := cats[i].NameRu
+			if nameI == "" {
+				nameI = cats[i].NameEn
+			}
+			if nameI == "" {
+				nameI = cats[i].Name
+			}
+			nameJ := cats[j].NameRu
+			if nameJ == "" {
+				nameJ = cats[j].NameEn
+			}
+			if nameJ == "" {
+				nameJ = cats[j].Name
+			}
+			return nameI < nameJ
+		}
+		return cats[i].Sort < cats[j].Sort
+	})
+
+	return cats, nil
+}
+
+
+func fetchProducts(ctx context.Context, d botengine.Deps) ([]ProductItem, error) {
+    baseURL := strings.TrimRight(d.Cfg.HaysellBaseURL, "/")
+    if baseURL == "" {
+        return nil, fmt.Errorf("HAYSELL_BASE_URL is empty in config")
+    }
+
+    u, err := url.Parse(baseURL + "/api/products")
+    if err != nil {
+        return nil, fmt.Errorf("parse base url: %w", err)
+    }
+
+    q := u.Query()
+    // for _, id := range ids {
+    //     q.Add("id", strconv.Itoa(id))
+    // }
+    u.RawQuery = q.Encode()
+
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+    if err != nil {
+        return nil, fmt.Errorf("new request: %w", err)
+    }
+
+    client := &http.Client{Timeout: 5 * time.Second}
+
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("do request: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+    }
+
+	var rawProducts map[string]haysellProduct
+    if err := json.NewDecoder(resp.Body).Decode(&rawProducts); err != nil {
+        return nil, fmt.Errorf("decode products: %w", err)
+    }
+
+    // res1 := make([]ProductItem, 0, len(rawProducts))
+    // for _, p := range rawProducts {
+    //     res1 = append(res1, ProductItem{
+    //         ID:          p.ID,
+    //         Category:  p.Category,
+    //         ItemName:        p.ItemName,
+    //         ShortName:   p.ShortName,
+    //         Price:    p.Price,
+    //         ImagePath:    p.ImagePath,
+    //         Description: p.Description,
+    //         Balance:     p.Balance,
+    //     })
+    // }
+
+    // var raw map[string]ProductItem
+    // if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+    //     return nil, fmt.Errorf("decode products: %w", err)
+    // }
+
+    res := make([]ProductItem, 0, len(rawProducts))
+    for _, p := range rawProducts {
+        res = append(res, ProductItem{
+            ID:          p.ID,
+            Category:  p.Category,
+            ItemName:        p.ItemName,
+            ShortName:   p.ShortName,
+            Price:    p.Price,
+            ImagePath:    p.ImagePath,
+            Description: p.Description,
+            Balance:     p.Balance,
+        })
+    }
+
+    // sort.Slice(res, func(i, j int) bool {
+    //     return res[i].ItemName < res[j].ItemName
+    // })
+
+    return res, nil
+}
+
+
+func loadBarCategoriesFromAPI(ctx context.Context, d botengine.Deps) error {
+	cats, err := fetchCategoriesByParentId(ctx, d)
+	if err != nil {
+		return fmt.Errorf("load categories: %w", err)
+	}
+
+	var res []BarCategory
+	byID := make(map[string]BarCategory)
+
+	for _, c := range cats {
+		if c.Deleted {
+			continue
+		}
+		// if c.Additional != "coffochka" {
+		// 	continue
+		// }
+		// if c.ParentId != 0 {
+		// 	continue
+		// }
+		// если захочешь только кофейные:
+		// if c.CatId != 2 { continue }
+
+		idStr := strconv.Itoa(c.Id)
+
+		name := c.NameRu
+		if name == "" {
+			name = c.NameEn
+		}
+		if name == "" {
+			name = c.Name
+		}
+		if name == "" {
+			name = idStr
+		}
+
+		bc := BarCategory{
+			ID:   idStr,
+			Name: name,
+			Sort: c.Sort,
+		}
+
+		res = append(res, bc)
+		byID[idStr] = bc
+	}
+
+	// 🔥 ВАЖНО: скрываем категории без товаров
+	if barItemsByCat != nil {
+		filtered := make([]BarCategory, 0, len(res))
+		for _, c := range res {
+			if items, ok := barItemsByCat[c.ID]; ok && len(items) > 0 {
+				filtered = append(filtered, c)
+			}
+		}
+		res = filtered
+	}
+
+	// сортировка по Sort, затем по Name
+	sort.Slice(res, func(i, j int) bool {
+		if res[i].Sort == res[j].Sort {
+			return res[i].Name < res[j].Name
+		}
+		return res[i].Sort < res[j].Sort
+	})
+
+	barCategories = res
+	barCategoriesByID = byID
+	barCategoriesReady = true
+	return nil
+}
+
+
+func allItems() []Item {
+	return barItemsAll
+}
+
+func itemsByCategory(catID string) []Item {
+	return barItemsByCat[catID]
+}
+
+func getBarCategories() []BarCategory {
+    return barCategories
+}
+
+
+// func ensureBarCategoriesLoaded(ctx context.Context, d botengine.Deps) error {
+// 	if barCategoriesReady {
+// 		return nil
+// 	}
+// 	return loadBarCategoriesFromAPI(ctx, d)
+// }
+
+func categoryNameByID(id string) string {
+    if c, ok := barCategoriesByID[id]; ok {
+        return c.Name
+    }
+    return id
+}
+
+func renderCategoriesText(d botengine.Deps, s *types.Session) string {
+	p := d.Printer(s.Lang)
+	var b strings.Builder
+
+	b.WriteString(p.Sprintf("bar_categories_title"))
+	b.WriteString("\n\n")
+
+	cats := getBarCategories()
+	if len(cats) == 0 {
+		b.WriteString(p.Sprintf("bar_categories_empty"))
+		return b.String()
+	}
+
+	for _, c := range cats {
+		b.WriteString("• ")
+		b.WriteString(safeHTML(c.Name))
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(p.Sprintf("bar_categories_hint"))
+	return b.String()
+}
+
+func categoriesKeyboard(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyboardMarkup {
+	cats := getBarCategories()
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	for _, c := range cats {
+		rows = append(rows, ui.Row(
+			ui.Cb(c.Name, "bar:cat:"+c.ID),
+		))
+	}
+
+	return ui.Inline(rows...)
+}
+
+func renderMenuForItems(d botengine.Deps, s *types.Session, items []Item, header string) string {
+	p := d.Printer(s.Lang)
+	var b strings.Builder
+
+	if header != "" {
+		b.WriteString(header)
+		b.WriteString("\n")
+	} else {
+		b.WriteString(p.Sprintf("bar_menu_title"))
+		b.WriteString("\n")
+	}
+
+	if len(items) == 0 {
+		b.WriteString(p.Sprintf("bar_category_empty"))
+		return b.String()
+	}
+
+	for _, it := range items {
+		qty := qtyInCart(s, it.ID)
+		if qty > 0 {
+			b.WriteString(fmt.Sprintf("• %s — %d AMD (×%d)\n", it.ShortName, it.PriceAMD, qty))
+		} else {
+			b.WriteString(fmt.Sprintf("• %s — %d AMD\n", it.ShortName, it.PriceAMD))
+		}
+	}
+
+	b.WriteString(p.Sprintf("bar_menu_hint"))
+	return b.String()
+}
+
+func menuKeyboardForItems(d botengine.Deps, s *types.Session, items []Item, withBackToCategories bool) tgbotapi.InlineKeyboardMarkup {
+	p := d.Printer(s.Lang)
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	for _, it := range items {
+		qty := qtyInCart(s, it.ID)
+		rows = append(rows, ui.Row(
+			ui.Cb(it.ShortName, "bar:noop"),
+		))
+
+		rows = append(rows, ui.Row(
+			ui.Cb(p.Sprintf("bar_price_qty", it.PriceAMD, qty), "bar:noop"),
+			ui.Cb("−", "bar:rem:"+it.ID),
+			ui.Cb("+", "bar:add:"+it.ID),
+		))
+
+		rows = append(rows, ui.Row(ui.Cb(" ", "bar:noop")))
+	}
+
+	if withBackToCategories {
+		rows = append(rows,
+			ui.Row(ui.Cb(p.Sprintf("bar_btn_back_to_categories"), "bar:cat:back")),
+		)
+	}
+
+	rows = append(rows,
+		ui.Row(ui.Cb(p.Sprintf("bar_btn_cart"), "bar:cart"), ui.Cb(p.Sprintf("bar_btn_clear"), "bar:clear")),
+		ui.Row(ui.Cb(p.Sprintf("bar_btn_checkout"), "bar:checkout")),
+	)
+
+	return ui.Inline(rows...)
+}
+
+// удобный хелпер: меню для конкретной категории
+func renderCategoryMenu(d botengine.Deps, s *types.Session, catID string) (string, tgbotapi.InlineKeyboardMarkup) {
+	items := itemsByCategory(catID)
+	header := fmt.Sprintf("📂 %s", safeHTML(categoryNameByID(catID)))
+	txt := renderMenuForItems(d, s, items, header)
+	kb := menuKeyboardForItems(d, s, items, true)
+	return txt, kb
 }
 
 // ---------- корзина ----------
@@ -123,17 +627,17 @@ func getCart(s *types.Session) map[string]int {
 			switch vv := v.(type) {
 			case int:
 				out[k] = vv
-			case int32:      // ← добавь
+			case int32:
 				out[k] = int(vv)
 			case int64:
 				out[k] = int(vv)
-			case uint:       // ← добавь
+			case uint:
 				out[k] = int(vv)
-			case uint32:     // ← добавь
+			case uint32:
 				out[k] = int(vv)
-			case uint64:     // ← добавь
+			case uint64:
 				out[k] = int(vv)
-			case float32:    // ← добавь
+			case float32:
 				out[k] = int(vv)
 			case float64:
 				out[k] = int(vv)
@@ -168,10 +672,12 @@ func cartSnapshot(s *types.Session) map[string]int {
 }
 
 func findItem(id string) *Item {
-	for _, it := range getMenu() {
-		if it.ID == id { cp := it; return &cp }
+	it, ok := barItemsByID[id]
+	if !ok {
+		return nil
 	}
-	return nil
+	cp := it
+	return &cp
 }
 
 func cartTotalAMD(s *types.Session) int {
@@ -194,7 +700,7 @@ func renderCartText(s *types.Session, d botengine.Deps) string {
 	for _, id := range ids {
 		it := findItem(id); if it == nil { continue }
 		qty := items[id]
-		b.WriteString(p.Sprintf("bar_line_item", it.Title, qty, it.PriceAMD*qty) + "\n")
+		b.WriteString(p.Sprintf("bar_line_item", it.ShortName, qty, it.PriceAMD*qty) + "\n")
 	}
 	b.WriteString(p.Sprintf("bar_cart_total", cartTotalAMD(s)))
 	return b.String()
@@ -205,31 +711,39 @@ func renderMenuCompact(d botengine.Deps, s *types.Session) string {
 	p := d.Printer(s.Lang)
 	var b strings.Builder
 	b.WriteString(p.Sprintf("bar_menu_title") + "\n")
-	for _, it := range getMenu() {
+
+	for _, it := range allItems() {
 		qty := qtyInCart(s, it.ID)
 		if qty > 0 {
-			b.WriteString(fmt.Sprintf("• %s — %d AMD (×%d)\n", it.Title, it.PriceAMD, qty))
+			b.WriteString(fmt.Sprintf("• %s — %d AMD (×%d)\n", it.ShortName, it.PriceAMD, qty))
 		} else {
-			b.WriteString(fmt.Sprintf("• %s — %d AMD\n", it.Title, it.PriceAMD))
+			b.WriteString(fmt.Sprintf("• %s — %d AMD\n", it.ShortName, it.PriceAMD))
 		}
 	}
 	b.WriteString(p.Sprintf("bar_menu_hint"))
 	return b.String()
 }
 
+
 func menuKeyboardCompact(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyboardMarkup {
 	p := d.Printer(s.Lang)
 	var rows [][]tgbotapi.InlineKeyboardButton
-	for _, it := range getMenu() {
+	for _, it := range allItems() {
 		qty := qtyInCart(s, it.ID)
+
 		rows = append(rows, ui.Row(
+			ui.Cb(it.ShortName, "bar:noop"),
+			// ui.Cb(p.Sprintf("bar_btn_photo"), "bar:peek:"+it.ID),
+		))
+
+		rows = append(rows, ui.Row(
+			ui.Cb(p.Sprintf("bar_price_qty", it.PriceAMD, qty), "bar:noop"),
 			ui.Cb("−", "bar:rem:"+it.ID),
-			ui.Cb(it.Title, "bar:noop"),
 			ui.Cb("+", "bar:add:"+it.ID),
 		))
 		rows = append(rows, ui.Row(
 			ui.Cb(p.Sprintf("bar_price_qty", it.PriceAMD, qty), "bar:noop"),
-			ui.Cb(p.Sprintf("bar_btn_photo"), "bar:peek:"+it.ID),
+			// ui.Cb(p.Sprintf("bar_btn_photo"), "bar:peek:"+it.ID),
 		))
 		rows = append(rows, ui.Row(ui.Cb(" ", "bar:noop")))
 	}
@@ -243,17 +757,17 @@ func menuKeyboardCompact(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyb
 func sortedKeys(m map[string]int) []string { ks := make([]string, 0, len(m)); for k := range m { ks = append(ks, k) }; sort.Strings(ks); return ks }
 func qtyInCart(s *types.Session, id string) int { if s == nil { return 0 }; return getCart(s)[id] }
 
-func resetBarState(s *types.Session) {
-	if s.Data == nil { s.Data = map[string]interface{}{} }
-	delete(s.Data, keyCart)
-	delete(s.Data, keyBuyer)
-	delete(s.Data, keyCurrency)
-	delete(s.Data, keyServe)
-	delete(s.Data, keyZone)
-	delete(s.Data, keyOrderID)
-	delete(s.Data, keyNotes)
-	delete(s.Data, keyAwaitNotes)
-}
+// func resetBarState(s *types.Session) {
+// 	if s.Data == nil { s.Data = map[string]interface{}{} }
+// 	delete(s.Data, keyCart)
+// 	delete(s.Data, keyBuyer)
+// 	delete(s.Data, keyCurrency)
+// 	delete(s.Data, keyServe)
+// 	delete(s.Data, keyZone)
+// 	delete(s.Data, keyOrderID)
+// 	delete(s.Data, keyNotes)
+// 	delete(s.Data, keyAwaitNotes)
+// }
 
 // ---------- персист утилиты ----------
 
@@ -487,30 +1001,113 @@ func prompt(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 		appendCommandHistory(s, "/bar", "")
 	}
 
-	if s.Data == nil { s.Data = map[string]interface{}{} }
-	if _, ok := s.Data[keyCart]; !ok { s.Data[keyCart] = map[string]int{} }
-	if _, ok := s.Data[keyCurrency]; !ok { s.Data[keyCurrency] = "AMD" }
+	if s.Data == nil {
+		s.Data = map[string]interface{}{}
+	}
+	if _, ok := s.Data[keyCart]; !ok {
+		s.Data[keyCart] = map[string]int{}
+	}
+	if _, ok := s.Data[keyCurrency]; !ok {
+		s.Data[keyCurrency] = "AMD"
+	}
+
+	// грузим категории и меню один раз
+	// if err := ensureBarDataLoaded(ctx, d); err != nil {
+	// 	log.Printf("[bar] failed to load bar catalog: %v", err)
+	// }
+
+	err := loadBarCategoriesFromAPI(ctx, d)
+	if err != nil {
+		log.Printf("[bar] failed to load bar catalog: %v", err)
+	}
+
+	prods, err := fetchProducts(ctx, d) // ← []ProductItem
+	if err != nil {
+		barMenuErr = err
+		log.Printf("[bar] fetchProducts failed: %v", err)
+	}
+
+	buildBarMenuFromProducts(prods) 
 
 	_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("bar_welcome"))
 	log.Printf("[bar] session started for chat %d", s.ChatID)
 
-	txt := renderMenuCompact(d, s)
-	kb := menuKeyboardCompact(d, s)
+	// сначала показываем категории
+	txt := renderCategoriesText(d, s)
+	kb := categoriesKeyboard(d, s)
 	_ = ui.SendHTML(d.Bot, s.ChatID, txt, kb)
 
 	persistBarStateToUser(s)
 	return stepHandle, nil
 }
 
+
 func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
-	if ev.Kind != botengine.EventCallback { return stepHandle, nil }
+	if ev.Kind != botengine.EventCallback {
+		return stepHandle, nil
+	}
+
+	// if err := ensureBarDataLoaded(ctx, d); err != nil {
+	// 	log.Printf("[bar] failed to load bar catalog in handle: %v", err)
+	// }
 
 	data := strings.TrimSpace(ev.CallbackData)
 	log.Printf("[bar] cb data=%q chat=%d msg=%d inline=%q", data, s.ChatID, ev.MessageID, ev.InlineMessageID)
 
 	switch {
+	case strings.HasPrefix(data, "bar:cat:"):
+		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "")
+
+		catID := strings.TrimPrefix(data, "bar:cat:")
+
+		// показать всё меню
+		if catID == "all" {
+			if s.Data != nil {
+				delete(s.Data, keyCurrentCategory)
+			}
+			txt := renderMenuCompact(d, s)
+			kb := menuKeyboardCompact(d, s)
+
+			if ev.MessageID != 0 {
+				safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+			} else {
+				_ = ui.SendHTML(d.Bot, s.ChatID, txt, kb)
+			}
+			return stepHandle, nil
+		}
+
+		// вернуться к списку категорий
+		if catID == "back" {
+			if s.Data != nil {
+				delete(s.Data, keyCurrentCategory)
+			}
+			txt := renderCategoriesText(d, s)
+			kb := categoriesKeyboard(d, s)
+
+			if ev.MessageID != 0 {
+				safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+			} else {
+				_ = ui.SendHTML(d.Bot, s.ChatID, txt, kb)
+			}
+			return stepHandle, nil
+		}
+
+		// открыть конкретную категорию
+		if s.Data == nil {
+			s.Data = map[string]interface{}{}
+		}
+		s.Data[keyCurrentCategory] = catID
+
+		txt, kb := renderCategoryMenu(d, s, catID)
+
+		if ev.MessageID != 0 {
+			safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+		} else {
+			_ = ui.SendHTML(d.Bot, s.ChatID, txt, kb)
+		}
+		return stepHandle, nil
 	case strings.HasPrefix(data, "bar:done:"):
 		// 1) мгновенно гасим спиннер
 		if err := ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "Принято"); err != nil {
@@ -598,9 +1195,14 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 		if changed {
 			persistBarStateToUser(s)
 			if ev.MessageID != 0 {
-				kb := menuKeyboardCompact(d, s)
-				txt := renderMenuCompact(d, s)
-				safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+				if cat, _ := s.Data[keyCurrentCategory].(string); cat != "" {
+					txt, kb := renderCategoryMenu(d, s, cat)
+					safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+				} else {
+					kb := menuKeyboardCompact(d, s)
+					txt := renderMenuCompact(d, s)
+					safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+				}
 			}
 		}
 		return stepHandle, nil
@@ -612,19 +1214,25 @@ func handle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.
 		if changed {
 			persistBarStateToUser(s)
 			if ev.MessageID != 0 {
-				kb := menuKeyboardCompact(d, s)
-				txt := renderMenuCompact(d, s)
-				safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+				if cat, _ := s.Data[keyCurrentCategory].(string); cat != "" {
+					txt, kb := renderCategoryMenu(d, s, cat)
+					safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+				} else {
+					kb := menuKeyboardCompact(d, s)
+					txt := renderMenuCompact(d, s)
+					safeEditMenu(d, s.ChatID, ev.MessageID, txt, kb)
+				}
 			}
 		}
 		return stepHandle, nil
+
 
 	case strings.HasPrefix(data, "bar:peek:"):
 		_ = ui.AnswerCallback(d.Bot, ev.CallbackQueryID, "")
 		id := strings.TrimPrefix(data, "bar:peek:")
 		if it := findItem(id); it != nil && strings.TrimSpace(it.PhotoURL) != "" {
 			pm := tgbotapi.NewPhoto(s.ChatID, tgbotapi.FileURL(it.PhotoURL))
-			pm.Caption = fmt.Sprintf("%s — %d AMD", it.Title, it.PriceAMD)
+			pm.Caption = fmt.Sprintf("%s — %d AMD", it.ShortName, it.PriceAMD)
 			msg, _ := d.Bot.Send(pm)
 			go func(chatID int64, messageID int) {
 				time.Sleep(8 * time.Second)
@@ -807,13 +1415,13 @@ func orderServeSummary(d botengine.Deps, s *types.Session) string {
 	ensureSessionHydrated(s)
 	p := d.Printer(s.Lang)
 	serve := fmt.Sprint(s.Data[keyServe])
-	zone  := fmt.Sprint(s.Data[keyZone])
+	// zone  := fmt.Sprint(s.Data[keyZone])
 	switch serve {
 	case "pickup":
 		return p.Sprintf("bar_serve_pickup_label")
-	case "tozone":
-		if zone == "" { return p.Sprintf("bar_serve_tozone_label") }
-		return p.Sprintf("bar_serve_tozone_with_label", zoneLabel(func(key string, a ...any) string { return p.Sprintf(key, a...) }, zone))
+	// case "tozone":
+	// 	if zone == "" { return p.Sprintf("bar_serve_tozone_label") }
+	// 	return p.Sprintf("bar_serve_tozone_with_label", zoneLabel(func(key string, a ...any) string { return p.Sprintf(key, a...) }, zone))
 	default:
 		return p.Sprintf("bar_not_specified")
 	}
@@ -885,7 +1493,7 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 		for _, id := range ids {
 			it := findItem(id); if it == nil { continue }
 			qty := items[id]
-			b.WriteString(p.Sprintf("bar_line_item", it.Title, qty, it.PriceAMD*qty) + "\n")
+			b.WriteString(p.Sprintf("bar_line_item", it.ShortName, qty, it.PriceAMD*qty) + "\n")
 		}
 		b.WriteString(p.Sprintf("bar_cart_total", total) + "\n")
 		b.WriteString(p.Sprintf("bar_admin_serve_line", orderServeSummary(d, s)) + "\n")
@@ -911,7 +1519,7 @@ func confirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types
 			qty := items[id]
 			orderItems = append(orderItems, BarOrderItem{
 				ID:       id,
-				Title:    it.Title,
+				Title:    it.ShortName,
 				Qty:      qty,
 				PriceAMD: it.PriceAMD,
 				SumAMD:   it.PriceAMD * qty,
@@ -1023,7 +1631,7 @@ func cartKeyboard(d botengine.Deps, s *types.Session) tgbotapi.InlineKeyboardMar
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, id := range sortedKeys(items) {
 		it := findItem(id); if it == nil { continue }
-		rows = append(rows, ui.Row(ui.Cb(fmt.Sprintf("❌ %s (×%d)", it.Title, items[id]), "bar:rmitem:"+id)))
+		rows = append(rows, ui.Row(ui.Cb(fmt.Sprintf("❌ %s (×%d)", it.ShortName, items[id]), "bar:rmitem:"+id)))
 	}
 	rows = append(rows,
 		ui.Row(ui.Cb(p.Sprintf("bar_btn_clear"), "bar:clear")),

@@ -6,4 +6,6 @@ type Services struct {
 	BotLogsSheets   BotLogsSheetsService
 	Events         	EventsService
 	Subscriptions   SubscriptionsService
+
+	// BarCatalog      BarCatalogService
 }

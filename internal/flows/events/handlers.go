@@ -62,7 +62,9 @@ func dateShort(t time.Time, lang string) string {
 
 func shortRunes(s string, n int) string {
 	r := []rune(s)
-	if len(r) <= n { return s }
+	if len(r) <= n {
+		return s
+	}
 	return string(r[:n-1]) + "…"
 }
 
@@ -115,7 +117,7 @@ func list(ctx context.Context, _ botengine.Event, d botengine.Deps, s *types.Ses
 		filtered = filtered[:5]
 	}
 
-	// счётчики
+	// счётчики (каждый раз – без кэша)
 	counts, _ := fetchEntriesCounts(ctx, entriesUniqueURL)
 
 	var sb strings.Builder
@@ -317,7 +319,7 @@ func profGet(s *types.Session, key string) (string, bool) {
 	}
 	if v, ok := s.Data[key]; ok {
 		if str, ok2 := v.(string); ok2 {
-			return str, true
+		 return str, true
 		}
 	}
 	return "", false
@@ -348,6 +350,12 @@ func regStart(ctx context.Context, ev botengine.Event, d botengine.Deps, s *type
 		_ = ui.SendText(d.Bot, s.ChatID, "Не удалось распознать мероприятие. Попробуй ещё раз 🙏")
 		return EventsDone, nil
 	}
+
+	// при новой регистрации на это событие — сбросим статус напоминаний и таймеры + старый entryID и human-дату
+	_ = stDel(ctx, d, s.ChatID, remStatusKey(id))
+	cancelTimers(s.ChatID, id)
+	_ = stDel(ctx, d, s.ChatID, keyRegEntryID)
+	_ = stDel(ctx, d, s.ChatID, keyRegDateHuman)
 
 	// найдём событие (для даты/вместимости)
 	var e *types.Event
@@ -493,9 +501,17 @@ func sendConfirmUI(ctx context.Context, d botengine.Deps, s *types.Session) {
 	)
 
 	kb := ui.Inline(
-		ui.Row(ui.Cb("✅ Подтвердить", "events:reg:confirm")),
-		ui.Row(ui.Cb("➖ Гостей", "events:reg:g:-"), ui.Cb("➕ Гостей", "events:reg:g:+")),
+		ui.Row(
+			ui.Cb("✏️ Имя", "events:reg:edit:name"),
+			ui.Cb("✏️ Email", "events:reg:edit:email"),
+		),
+		ui.Row(
+			ui.Cb("✏️ Телефон", "events:reg:edit:phone"),
+			ui.Cb("✏️ Telegram", "events:reg:edit:telegram"),
+		),
 		ui.Row(ui.Cb("✏️ Комментарий", "events:reg:edit:comment")),
+		ui.Row(ui.Cb("➖ Гостей", "events:reg:g:-"), ui.Cb("➕ Гостей", "events:reg:g:+")),
+		ui.Row(ui.Cb("✅ Подтвердить", "events:reg:confirm")),
 		ui.Row(ui.Cb("❌ Отменить регистрацию", "events:rc:ask")),
 	)
 
@@ -537,6 +553,63 @@ func regAskComment(ctx context.Context, ev botengine.Event, d botengine.Deps, s 
 	return EventsRegConfirm, nil
 }
 
+// --- inline edit handlers ---
+
+func regEditName(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	txt := strings.TrimSpace(ev.Text)
+	if txt == "" {
+		_ = ui.SendText(d.Bot, s.ChatID, "Введите новое имя:")
+		return EventsRegEditName, nil
+	}
+	if len([]rune(txt)) < 2 {
+		_ = ui.SendText(d.Bot, s.ChatID, "Слишком короткое имя. Давай хотя бы 2 буквы 😊")
+		return EventsRegEditName, nil
+	}
+	profSet(ctx, d, s, keyProfName, txt)
+	sendConfirmUI(ctx, d, s)
+	return EventsRegConfirm, nil
+}
+
+func regEditEmail(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	txt := strings.TrimSpace(ev.Text)
+	if txt == "" {
+		_ = ui.SendText(d.Bot, s.ChatID, "Введите новый email:")
+		return EventsRegEditEmail, nil
+	}
+	if !reEmail.MatchString(txt) {
+		_ = ui.SendText(d.Bot, s.ChatID, "Похоже, это не email 🙂 Введите корректный e-mail:")
+		return EventsRegEditEmail, nil
+	}
+	profSet(ctx, d, s, keyProfEmail, txt)
+	sendConfirmUI(ctx, d, s)
+	return EventsRegConfirm, nil
+}
+
+func regEditPhone(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	txt := strings.ReplaceAll(strings.TrimSpace(ev.Text), " ", "")
+	if txt == "" {
+		_ = ui.SendText(d.Bot, s.ChatID, "Введите новый телефон (7–15 цифр, можно с +):")
+		return EventsRegEditPhone, nil
+	}
+	if !rePhone.MatchString(txt) {
+		_ = ui.SendText(d.Bot, s.ChatID, "Телефон должен быть 7–15 цифр (можно с +). Попробуй ещё раз:")
+		return EventsRegEditPhone, nil
+	}
+	profSet(ctx, d, s, keyProfPhone, txt)
+	sendConfirmUI(ctx, d, s)
+	return EventsRegConfirm, nil
+}
+
+func regEditTelegram(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+	txt := strings.TrimSpace(ev.Text)
+	if txt == "" {
+		_ = ui.SendText(d.Bot, s.ChatID, "Введите новый Telegram (например, @nickname):")
+		return EventsRegEditTelegram, nil
+	}
+	profSet(ctx, d, s, keyProfTelegram, txt)
+	sendConfirmUI(ctx, d, s)
+	return EventsRegConfirm, nil
+}
 
 func incGuests(ctx context.Context, d botengine.Deps, s *types.Session, delta int) {
 	gstr, _ := stGet(ctx, d, s.ChatID, keyRegGuests)
@@ -578,6 +651,18 @@ func regConfirm(ctx context.Context, ev botengine.Event, d botengine.Deps, s *ty
 	case "events:reg:edit:comment":
 		_ = ui.SendText(d.Bot, s.ChatID, "Ок, пришлите новый комментарий (или «-», чтобы очистить):")
 		return EventsRegAskComment, nil
+	case "events:reg:edit:name":
+		_ = ui.SendText(d.Bot, s.ChatID, "Введите новое имя:")
+		return EventsRegEditName, nil
+	case "events:reg:edit:email":
+		_ = ui.SendText(d.Bot, s.ChatID, "Введите новый email:")
+		return EventsRegEditEmail, nil
+	case "events:reg:edit:phone":
+		_ = ui.SendText(d.Bot, s.ChatID, "Введите новый телефон (7–15 цифр, можно с +):")
+		return EventsRegEditPhone, nil
+	case "events:reg:edit:telegram":
+		_ = ui.SendText(d.Bot, s.ChatID, "Введите новый Telegram (например, @nickname):")
+		return EventsRegEditTelegram, nil
 	}
 	return EventsRegConfirm, nil
 }
@@ -636,22 +721,49 @@ func regSubmit(ctx context.Context, _ botengine.Event, d botengine.Deps, s *type
 	if err := json.NewDecoder(resp.Body).Decode(&created); err == nil && created.Id != "" {
 		_ = stSet(ctx, d, s.ChatID, keyRegEntryID, created.Id)
 	}
+	// Сохраним «человеческую» дату, отправленную на POST, чтобы не затирать её апдейтами
+	_ = stSet(ctx, d, s.ChatID, keyRegDateHuman, dateHuman)
 
 	text := "Спасибо за регистрацию! 🎉\n\n" +
 		"Пожалуйста, не закрывайте и не удаляйте бота — иначе мы не сможем прислать напоминание и важные детали мероприятия.\n" +
 		"Если что-то изменится — просто напишите нам сюда в чат.\n\n" +
 		"До встречи!"
-	kb := ui.Inline(ui.Row(ui.Cb("❌ Отменить регистрацию", "events:rc:ask")))
+
+	kb := ui.Inline(
+		ui.Row(ui.Cb("❌ Отменить регистрацию", "events:rc:ask:"+evID)),
+	)
+
 	_ = ui.SendHTML(d.Bot, s.ChatID, htmlEscape(text), kb)
 
-
+	// на новую регистрацию — чистый статус + чистые таймеры
+	_ = stDel(ctx, d, s.ChatID, remStatusKey(evID))
+	cancelTimers(s.ChatID, evID)
 	scheduleReminders(ctx, d, s)
 
 	s.Flow, s.Step = "", ""
 	return EventsDone, nil
 }
 
-// ====================== Отмена регистрации (PUT willCome=false) ======================
+func eventDateHumanForUpdate(ctx context.Context, d botengine.Deps, s *types.Session, eventID string) string {
+	// 1) сначала — исходная human-дата из POST, если есть
+	if dh, ok := stGet(ctx, d, s.ChatID, keyRegDateHuman); ok && strings.TrimSpace(dh) != "" {
+		return dh
+	}
+	// 2) RFC3339 из KV (ставится в regStart)
+	if raw, ok := stGet(ctx, d, s.ChatID, keyRegEventDate); ok && raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			return formatRuHuman(t.In(userLoc(s)))
+		}
+	}
+	// 3) если нет — подтянем событие по id
+	if _, t := loadEventByID(ctx, d, eventID); !t.IsZero() {
+		return formatRuHuman(t.In(userLoc(s)))
+	}
+	// 4) на крайний случай — чтобы не затирать дату пустотой
+	return "дата будет уточнена"
+}
+
+// ====================== Отмена/подтверждение (PUT willCome=...) ======================
 
 type updateEntriePayload struct {
 	Id              string `json:"id,omitempty"`
@@ -662,18 +774,18 @@ type updateEntriePayload struct {
 	NumberOfPersons string `json:"numberOfPersons,omitempty"`
 	Instagram       string `json:"instagram,omitempty"`
 	Telegram        string `json:"telegram,omitempty"`
-	Date            string `json:"date,omitempty"`
+	Date            string `json:"date,omitempty"`   // отправляем ТОЛЬКО если нет entryID
 	EventId         string `json:"eventId,omitempty"`
 	Comment         string `json:"comment,omitempty"`
 	WillCome        bool   `json:"willCome"`
 }
 
 func updateWillCome(ctx context.Context, d botengine.Deps, s *types.Session, eventID string, will bool) error {
-	// профайл
-	name, _  := profGet(s, keyProfName)
+	// профиль
+	name, _ := profGet(s, keyProfName)
 	email, _ := profGet(s, keyProfEmail)
 	phone, _ := profGet(s, keyProfPhone)
-	tg, _    := profGet(s, keyProfTelegram)
+	tg, _ := profGet(s, keyProfTelegram)
 
 	// гости/коммент
 	guests, _ := stGet(ctx, d, s.ChatID, keyRegGuests)
@@ -682,23 +794,14 @@ func updateWillCome(ctx context.Context, d botengine.Deps, s *types.Session, eve
 	}
 	comment, _ := stGet(ctx, d, s.ChatID, keyRegComment)
 
-	// дата: сначала из KV (RFC3339), если нет — из списка событий
-	var dateStr string
-	if raw, ok := stGet(ctx, d, s.ChatID, keyRegEventDate); ok && raw != "" {
-		if t, err := time.Parse(time.RFC3339, raw); err == nil {
-			dateStr = formatRuHuman(t.In(userLoc(s)))
-		}
-	}
-	if dateStr == "" {
-		if _, t := loadEventByID(ctx, d, eventID); !t.IsZero() {
-			dateStr = formatRuHuman(t.In(userLoc(s)))
-		}
-	}
+	// id записи с бэка, если есть
+	entryID, _ := stGet(ctx, d, s.ChatID, keyRegEntryID)
 
-	// возможный id записи
-	var entryID string
-	if id, ok := stGet(ctx, d, s.ChatID, keyRegEntryID); ok {
-		entryID = id
+	// по умолчанию дату НЕ отправляем (чтобы не перетирать поле на бэке)
+	var dateStr string
+	if strings.TrimSpace(entryID) == "" {
+		// если id ещё нет, отправим human-дату, чтобы бэк смог смэтчить
+		dateStr = eventDateHumanForUpdate(ctx, d, s, eventID)
 	}
 
 	p := updateEntriePayload{
@@ -708,10 +811,12 @@ func updateWillCome(ctx context.Context, d botengine.Deps, s *types.Session, eve
 		Phone:           phone,
 		NumberOfPersons: guests,
 		Telegram:        tg,
-		Date:            dateStr,
 		EventId:         eventID,
 		Comment:         comment,
 		WillCome:        will,
+	}
+	if strings.TrimSpace(dateStr) != "" {
+		p.Date = dateStr
 	}
 
 	b, _ := json.Marshal(p)
@@ -731,10 +836,25 @@ func updateWillCome(ctx context.Context, d botengine.Deps, s *types.Session, eve
 
 func regCancelAsk(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	ackCB(d, ev)
+
+	// если пришёл с id — сохраним его на всякий случай
+	if strings.HasPrefix(ev.CallbackData, "events:rc:ask:") {
+		evID := strings.TrimPrefix(ev.CallbackData, "events:rc:ask:")
+		if evID != "" {
+			_ = stSet(ctx, d, s.ChatID, keyRegEventID, evID)
+		}
+	}
+
+	// достанем (либо из callback, либо из KV)
+	evID := currentEventID(ctx, d, s)
+
 	msg := "Ой… Нам очень жаль 😿 Мы готовимся к каждому гостю и бережём места.\n" +
 		"Точно отменяем? (можно просто прийти на другое событие — мы будем рады!)"
 	kb := ui.Inline(
-		ui.Row(ui.Cb("Да, отменить", "events:rc:yes"), ui.Cb("Оставить регистрацию", "events:rc:no")),
+		ui.Row(
+			ui.Cb("Да, отменить", "events:rc:yes:"+evID),
+			ui.Cb("Оставить регистрацию", "events:rc:no:"+evID),
+		),
 	)
 	_ = ui.SendHTML(d.Bot, s.ChatID, htmlEscape(msg), kb)
 	return EventsRegCancelDo, nil
@@ -742,26 +862,36 @@ func regCancelAsk(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 
 func regCancelDo(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	ackCB(d, ev)
-	switch ev.CallbackData {
-	case "events:rc:yes":
-		// пометим статус и отменим будущие таймеры
-		if evID := currentEventID(ctx, d, s); evID != "" {
+
+	var evID string
+	switch {
+	case strings.HasPrefix(ev.CallbackData, "events:rc:yes:"):
+		evID = strings.TrimPrefix(ev.CallbackData, "events:rc:yes:")
+		if evID == "" {
+			evID = currentEventID(ctx, d, s)
+		}
+
+		if evID != "" {
 			_ = stSet(ctx, d, s.ChatID, remStatusKey(evID), "canceled")
 			cancelTimers(s.ChatID, evID)
-
-			if err := updateWillCome(ctx, d, s, evID, true); err != nil {
+			if err := updateWillCome(ctx, d, s, evID, false); err != nil {
 				_ = ui.SendText(d.Bot, s.ChatID, "Не удалось отменить автоматически. Мы отметили у себя, но на всякий случай напишите нам: @lettersandnumbers_am 🙏")
 			} else {
 				_ = ui.SendText(d.Bot, s.ChatID, "Окей, мы отметили отмену. Если передумаете — снова жмякните /events ❤️")
 			}
 		}
-	case "events:rc:no":
+
+	case strings.HasPrefix(ev.CallbackData, "events:rc:no:"):
+		evID = strings.TrimPrefix(ev.CallbackData, "events:rc:no:")
+		if evID == "" {
+			evID = currentEventID(ctx, d, s)
+		}
 		_ = ui.SendText(d.Bot, s.ChatID, "Ура! Мы вас ждём 🥳")
 	}
+
 	s.Flow, s.Step = "", ""
 	return EventsDone, nil
 }
-
 
 // ====================== done ======================
 
@@ -872,8 +1002,11 @@ func eventID(e types.Event) string { return e.ID }
 func hasShowFormField(_ types.Event) bool { return true }
 
 func fetchEventsFallback(ctx context.Context, baseURL string) ([]types.Event, error) {
+	// кэш-бастинг
 	sep := "?"
-	if strings.Contains(baseURL, "?") { sep = "&" }
+	if strings.Contains(baseURL, "?") {
+		sep = "&"
+	}
 	u := fmt.Sprintf("%s%sts=%d", baseURL, sep, time.Now().UnixNano())
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
@@ -1025,8 +1158,11 @@ func checkCapacityOK(ctx context.Context, d botengine.Deps, evID string, need in
 }
 
 func fetchEntriesCounts(ctx context.Context, baseURL string) (map[string]int, error) {
+	// кэш-бастинг
 	sep := "?"
-	if strings.Contains(baseURL, "?") { sep = "&" }
+	if strings.Contains(baseURL, "?") {
+		sep = "&"
+	}
 	u := fmt.Sprintf("%s%sts=%d", baseURL, sep, time.Now().UnixNano())
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
@@ -1102,8 +1238,8 @@ func scheduleReminders(ctx context.Context, d botengine.Deps, s *types.Session) 
 		return
 	}
 
-	// Если уже подтвердил/отменил — не ставим
-	if st, ok := stGet(ctx, d, s.ChatID, remStatusKey(evID)); ok && (st == "confirmed" || st == "canceled") {
+	// если уже отменял — не ставим; confirmed не блокирует постановку
+	if st, ok := stGet(ctx, d, s.ChatID, remStatusKey(evID)); ok && st == "canceled" {
 		return
 	}
 
@@ -1115,7 +1251,7 @@ func scheduleReminders(ctx context.Context, d botengine.Deps, s *types.Session) 
 		when1 = time.Now().Add(testReminder1)
 		when2 = time.Now().Add(testReminder2)
 	} else {
-		// 1) За сутки, в дневное время — возьмём 12:00 локали
+		// 1) За сутки, в дневное время — 12:00 локали
 		dayBeforeNoon := time.Date(tLocal.Year(), tLocal.Month(), tLocal.Day(), 12, 0, 0, 0, loc).AddDate(0, 0, -1)
 		// 2) За 4 часа до начала
 		before4h := tLocal.Add(-4 * time.Hour)
@@ -1160,8 +1296,8 @@ func scheduleReminders(ctx context.Context, d botengine.Deps, s *types.Session) 
 }
 
 func sendReminder(d botengine.Deps, chatID int64, lang, eventID, tag string) {
-	// Если уже подтвердил/отменил — не шлём
-	if st, ok := stGet(context.Background(), d, chatID, remStatusKey(eventID)); ok && (st == "confirmed" || st == "canceled") {
+	// отправку блокируем только если уже отменено
+	if st, ok := stGet(context.Background(), d, chatID, remStatusKey(eventID)); ok && st == "canceled" {
 		return
 	}
 
@@ -1248,7 +1384,7 @@ func remindHandle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 	switch action {
 	case "confirm":
 		_ = stSet(ctx, d, s.ChatID, remStatusKey(evID), "confirmed")
-		cancelTimers(s.ChatID, evID)
+		// при подтверждении таймеры не гасим — второй пуш остаётся
 		if err := updateWillCome(ctx, d, s, evID, true); err != nil {
 			_ = ui.SendText(d.Bot, s.ChatID, "Подтвердили у нас ✅ Но сервер сейчас недоступен, мы попробуем ещё раз позже.")
 		} else {

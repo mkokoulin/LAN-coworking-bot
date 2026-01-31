@@ -17,12 +17,8 @@ func Register(reg *botengine.Registry) {
 	reg.RegisterFlow(FlowMeeting, map[types.Step]botengine.StepHandler{
 		MeetPrompt:       prompt,
 		MeetWaitInterval: waitInterval,
-		// MeetNotify:       notify,
 		MeetDone:         done,
 	})
 
-	// вход по команде
 	reg.RegisterCommand("meetingroom", botengine.FlowEntry{Flow: FlowMeeting, Step: MeetPrompt})
-	// при желании алиас:
-	// reg.RegisterCommand("meeting", botengine.FlowEntry{Flow: FlowMeeting, Step: MeetPrompt})
 }

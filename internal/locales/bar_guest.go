@@ -31,6 +31,20 @@ func registerBarGuest() {
 	set(LangEN, "bar_order_cancelled", "Cancelled. Open the cart anytime 😉")
 	set(LangRU, "bar_order_cancelled", "Отменили. Если передумаете — корзина рядом 😉")
 
+	// Категории
+	set(LangEN, "bar_categories_title", "📂 Choose a category")
+	set(LangRU, "bar_categories_title", "📂 Выберите категорию")
+	set(LangEN, "bar_categories_empty", "No categories are available yet.")
+	set(LangRU, "bar_categories_empty", "Категорий пока нет.")
+	set(LangEN, "bar_categories_hint", "Tap a category to see items. Or open the full menu with the button below.")
+	set(LangRU, "bar_categories_hint", "Нажмите на категорию, чтобы открыть позиции. Или откройте всё меню кнопкой ниже.")
+	set(LangEN, "bar_category_empty", "There are no items in this category yet.")
+	set(LangRU, "bar_category_empty", "В этой категории пока нет позиций.")
+	// set(LangEN, "bar_btn_all_menu", "All items")
+	// set(LangRU, "bar_btn_all_menu", "Все позиции")
+	set(LangEN, "bar_btn_back_to_categories", "↩️ Back to categories")
+	set(LangRU, "bar_btn_back_to_categories", "↩️ Назад к категориям")
+
 	// Labels/buttons
 	set(LangEN, "bar_menu_title", "🍹 <b>Menu</b>")
 	set(LangRU, "bar_menu_title", "🍹 <b>Меню</b>")
@@ -45,8 +59,8 @@ func registerBarGuest() {
 	set(LangEN, "bar_price_qty", "%d AMD • ×%d")
 	set(LangRU, "bar_price_qty", "%d AMD • ×%d")
 
-	set(LangEN, "bar_btn_photo", "👁 Photo")
-	set(LangRU, "bar_btn_photo", "👁 Фото")
+	// set(LangEN, "bar_btn_photo", "👁 Photo")
+	// set(LangRU, "bar_btn_photo", "👁 Фото")
 	set(LangEN, "bar_btn_cart", "🧺 Cart")
 	set(LangRU, "bar_btn_cart", "🧺 Корзина")
 	set(LangEN, "bar_btn_clear", "🧹 Clear")
@@ -68,13 +82,21 @@ func registerBarGuest() {
 	set(LangEN, "bar_in_cart_label", "In cart: %d")
 	set(LangRU, "bar_in_cart_label", "В корзине: %d")
 
-	// Serve / Zones
+	// Serve / Zones (основные)
 	set(LangEN, "bar_zone_coworking", "Coworking")
 	set(LangRU, "bar_zone_coworking", "Коворкинг")
 	set(LangEN, "bar_zone_cafe", "Cafe")
 	set(LangRU, "bar_zone_cafe", "Кафе")
 	set(LangEN, "bar_zone_street", "Street")
 	set(LangRU, "bar_zone_street", "Улица")
+
+	// Serve / Zones — варианты с _name, которые используются в zoneLabel()
+	set(LangEN, "bar_zone_coworking_name", "Coworking")
+	set(LangRU, "bar_zone_coworking_name", "Коворкинг")
+	set(LangEN, "bar_zone_cafe_name", "Cafe")
+	set(LangRU, "bar_zone_cafe_name", "Кафе")
+	set(LangEN, "bar_zone_street_name", "Street")
+	set(LangRU, "bar_zone_street_name", "Улица")
 
 	set(LangEN, "bar_serve_pickup_btn", "🧑‍🍳 Pick up at bar")
 	set(LangRU, "bar_serve_pickup_btn", "🧑‍🍳 Самовывоз с бара")
@@ -85,10 +107,22 @@ func registerBarGuest() {
 	set(LangRU, "bar_serve_summary", "📍 Подача: <b>%s</b>")
 	set(LangEN, "bar_serve_pickup_label", "Pick up at the bar")
 	set(LangRU, "bar_serve_pickup_label", "Самовывоз с бара")
-	set(LangEN, "bar_serve_tozone_label", "Bring to zone")
-	set(LangRU, "bar_serve_tozone_label", "Принести в зону")
+	// set(LangEN, "bar_serve_tozone_label", "Bring to zone")
+	// set(LangRU, "bar_serve_tozone_label", "Принести в зону")
 	set(LangEN, "bar_serve_tozone_with", "Bring to zone — %s")
 	set(LangRU, "bar_serve_tozone_with", "Принести в зону — %s")
+	// ключ, который дергает orderServeSummary: bar_serve_tozone_with_label
+	set(LangEN, "bar_serve_tozone_with_label", "Bring to zone — %s")
+	set(LangRU, "bar_serve_tozone_with_label", "Принести в зону — %s")
+
+	set(LangEN, "bar_comment_label", "Comment:")
+	set(LangRU, "bar_comment_label", "Комментарий:")
+
+	set(LangEN, "bar_contact_hint",
+	"If you have any questions — just write to the barista %s")
+	set(LangRU, "bar_contact_hint",
+	"Если появятся вопросы — напишите бариста %s")
+
 	set(LangEN, "bar_not_specified", "not specified")
 	set(LangRU, "bar_not_specified", "не указано")
 

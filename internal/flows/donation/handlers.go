@@ -11,6 +11,9 @@ import (
 	"github.com/mkokoulin/LAN-coworking-bot/internal/ui"
 )
 
+const donationContactUsername = "@lan_yerevan"
+const donationContactURL = "https://t.me/lan_yerevan"
+
 func donationHome(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	if ok, next := botengine.InterceptSlashNav(ev, func() { ackCallback(d, ev) }); ok {
 		return next, nil
@@ -18,10 +21,8 @@ func donationHome(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 
 	if ev.Kind == botengine.EventCallback && strings.HasPrefix(ev.CallbackData, "donation:") {
 		switch ev.CallbackData {
-		case "donation:card":
-			return donationCard(ctx, ev, d, s)
-		case "donation:copied":
-			return donationCopied(ctx, ev, d, s)
+		case "donation:contact":
+			return donationContact(ctx, ev, d, s)
 		case "donation:done":
 			return donationDone(ctx, ev, d, s)
 		case "donation:home":
@@ -40,22 +41,26 @@ func donationHome(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 		"• " + p.Sprintf("donation_opt_events"),
 		"• " + p.Sprintf("donation_opt_bar"),
 		"• " + p.Sprintf("donation_opt_cowork"),
-		"• " + p.Sprintf("donation_opt_card"),
+		"• " + p.Sprintf("donation_opt_contact"),
 		"",
 		p.Sprintf("donation_choose"),
 	}, "\n")
 
 	kb := ui.Inline(
 		ui.Row(
-			ui.Cb(p.Sprintf("donation_btn_card"), "donation:card"),
+			ui.Cb(p.Sprintf("donation_btn_contact"), "donation:contact"),
 		),
 		ui.Row(
 			ui.CbCmd(p.Sprintf("donation_btn_events"), "events"),
-			ui.CbCmd(p.Sprintf("donation_btn_bar"), "bar"),
+			// @TODO bar flow is not implemented yet
+			// ui.CbCmd(p.Sprintf("donation_btn_bar"), "bar"),
 		),
 		ui.Row(
 			ui.CbCmd(p.Sprintf("donation_btn_cowork"), "booking"),
 			ui.CbCmd(p.Sprintf("donation_btn_home"), "start"),
+		),
+		ui.Row(
+			ui.Cb(p.Sprintf("donation_btn_done"), "donation:done"),
 		),
 	)
 
@@ -66,23 +71,26 @@ func donationHome(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 	return DonationHome, nil
 }
 
-func donationCard(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+func donationContact(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	if ev.Kind == botengine.EventCallback {
 		ackCallback(d, ev)
 	}
 	p := d.Printer(s.Lang)
 
-	text := p.Sprintf("donation_btn_card") + "\n\n" +
-		p.Sprintf("donation_card_label") + "\n<code>" + cardNumber + "</code>\n\n" +
-		p.Sprintf("donation_card_note") + "\n\n" +
-		p.Sprintf("donation_thanks")
+	text := strings.Join([]string{
+		p.Sprintf("donation_contact_title"),
+		"",
+		p.Sprintf("donation_contact_text", donationContactUsername),
+		"",
+		p.Sprintf("donation_thanks"),
+	}, "\n")
 
 	kb := ui.Inline(
 		ui.Row(
-			ui.Cb(p.Sprintf("donation_btn_copy"), "donation:copied"),
-			ui.Cb(p.Sprintf("donation_btn_back"), "donation:home"),
+			tgbotapi.NewInlineKeyboardButtonURL(p.Sprintf("donation_btn_open_chat"), donationContactURL),
 		),
 		ui.Row(
+			ui.Cb(p.Sprintf("donation_btn_back"), "donation:home"),
 			ui.Cb(p.Sprintf("donation_btn_done"), "donation:done"),
 		),
 	)
@@ -92,21 +100,7 @@ func donationCard(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 	msg.ReplyMarkup = kb
 	_, _ = d.Bot.Send(msg)
 
-	return DonationCard, nil
-}
-
-func donationCopied(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
-	if ev.Kind == botengine.EventCallback {
-		ackCallback(d, ev)
-	}
-	p := d.Printer(s.Lang)
-
-	notice := p.Sprintf("donation_copy_hint") + "\n<code>" + cardNumber + "</code>"
-	n := tgbotapi.NewMessage(ev.ChatID, notice)
-	n.ParseMode = "HTML"
-	_, _ = d.Bot.Send(n)
-
-	return DonationCard, nil
+	return DonationHome, nil
 }
 
 func donationDone(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {

@@ -45,3 +45,24 @@ type GuestSheetsService interface {
 	// ожидаемое остальным кодом имя — алиас к CreateGuest
 	AddGuest(ctx context.Context, readRange string, guest Guest) error
 }
+
+type BarCategory struct {
+    ID   string
+    Name string
+}
+
+type BarProduct struct {
+    ID          int
+    CategoryID  string
+    Name        string
+    ShortName   string
+    PriceAMD    int
+    ImageURL    string
+    Description string
+    Balance     int
+}
+
+type BarCatalogService interface {
+    ListCategories(ctx context.Context) ([]BarCategory, error)
+    ListProducts(ctx context.Context, ids []int) ([]BarProduct, error)
+}

@@ -19,7 +19,7 @@ func start(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.S
 			ui.Cb("Coworking", "wifi:coworking"),
 		),
 	)
-	if err := ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("select_network"), kb); err != nil {
+	if err := ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("wifi_select_network"), kb); err != nil {
 		return WifiStart, err
 	}
 	return WifiWaitChoice, nil

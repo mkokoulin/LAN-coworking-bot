@@ -202,12 +202,9 @@ func cat(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Ses
 
 const supportCardNumber = "0000 0000 0000 0000" // TODO: замените на реальный номер
 
-// ...
-
 func help(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	p := d.Printer(s.Lang)
 
-	// обработка "скопировать номер"
 	if ev.Kind == botengine.EventCallback && ev.CallbackData == "kotolog:copy_card" {
 		ackCallback(d, ev)
 		msg := tgbotapi.NewMessage(

@@ -1,47 +1,57 @@
 package locales
 
 func registerDonation() {
-	set(LangEN, "donation_title", "Letters & Numbers is an independent project. We exist thanks to your support ❤️")
-	set(LangRU, "donation_title", "Letters & Numbers — независимый проект. Мы живём за счёт вашей поддержки ❤️")
-	set(LangEN, "donation_howto", "How you can support:")
-	set(LangRU, "donation_howto", "Как можно поддержать:")
+	set(LangEN, "donation_title", "Support LAN ❤️")
+	set(LangRU, "donation_title", "Поддержать LAN ❤️")
 
-	set(LangEN, "donation_opt_events", "Attend our 🎟 events")
-	set(LangRU, "donation_opt_events", "Приходить на наши 🎟 мероприятия")
-	set(LangEN, "donation_opt_bar", "Grab a coffee and desserts at the ☕ bar")
-	set(LangRU, "donation_opt_bar", "Заглядывать в ☕ бар за кофе и десертами")
-	set(LangEN, "donation_opt_cowork", "Work from our 💻 coworking")
-	set(LangRU, "donation_opt_cowork", "Работать у нас в 💻 коворкинге")
-	set(LangEN, "donation_opt_card", "Or send a 💳 card donation (add note “lan”)")
-	set(LangRU, "donation_opt_card", "Сделать 💳 донат на карту (в названии платежа указать «lan»)")
+	set(LangEN, "donation_howto", "You can support the project in different ways:")
+	set(LangRU, "donation_howto", "Вы можете поддержать проект разными способами:")
+
+	set(LangEN, "donation_opt_events", "Join events & bring friends")
+	set(LangRU, "donation_opt_events", "Приходите на ивенты и зовите друзей")
+
+	set(LangEN, "donation_opt_bar", "Order drinks at the bar")
+	set(LangRU, "donation_opt_bar", "Заказывайте напитки в баре")
+
+	set(LangEN, "donation_opt_cowork", "Book coworking / meeting room")
+	set(LangRU, "donation_opt_cowork", "Бронируйте коворкинг / переговорку")
+
+	set(LangEN, "donation_opt_contact", "Donate or support our cats — message us")
+	set(LangRU, "donation_opt_contact", "Пожертвование или помощь котикам — напишите нам")
+
 	set(LangEN, "donation_choose", "Choose an option:")
 	set(LangRU, "donation_choose", "Выберите вариант:")
 
-	set(LangEN, "donation_btn_card", "💳 Card donation")
-	set(LangRU, "donation_btn_card", "💳 Донат на карту")
-	set(LangEN, "donation_btn_events", "🎟 Events")
-	set(LangRU, "donation_btn_events", "🎟 Мероприятия")
-	set(LangEN, "donation_btn_bar", "☕ Bar")
-	set(LangRU, "donation_btn_bar", "☕ Бар")
-	set(LangEN, "donation_btn_cowork", "💻 Coworking")
-	set(LangRU, "donation_btn_cowork", "💻 Коворкинг")
-	set(LangEN, "donation_btn_home", "⬅️ Home")
-	set(LangRU, "donation_btn_home", "⬅️ На главную")
-	set(LangEN, "donation_btn_copy", "📋 Copy number")
-	set(LangRU, "donation_btn_copy", "📋 Скопировать номер")
-	set(LangEN, "donation_btn_back", "⬅️ Back")
-	set(LangRU, "donation_btn_back", "⬅️ Назад")
-	set(LangEN, "donation_btn_done", "✅ Done")
-	set(LangRU, "donation_btn_done", "✅ Готово")
+	set(LangEN, "donation_btn_contact", "Message @lan_yerevan 💬")
+	set(LangRU, "donation_btn_contact", "Написать @lan_yerevan 💬")
 
-	set(LangEN, "donation_card_label", "Card number:")
-	set(LangRU, "donation_card_label", "Номер карты:")
-	set(LangEN, "donation_card_note", "Important: add <b>lan</b> in the payment note — this helps us understand the purpose.")
-	set(LangRU, "donation_card_note", "Важно: в названии платежа укажите <b>lan</b> — так мы быстрее поймём назначение.")
-	set(LangEN, "donation_thanks", "Thank you for your support! 🐱")
-	set(LangRU, "donation_thanks", "Спасибо за поддержку! 🐱")
-	set(LangEN, "donation_copy_hint", "Copy the card number from the message above:")
-	set(LangRU, "donation_copy_hint", "Скопируйте номер карты из сообщения выше:")
-	set(LangEN, "donation_always", "Thank you! /donation is always available.")
-	set(LangRU, "donation_always", "Спасибо! Раздел /donation всегда под рукой.")
+	set(LangEN, "donation_contact_title", "Donation / Support")
+	set(LangRU, "donation_contact_title", "Пожертвование / Поддержка")
+
+	set(LangEN, "donation_contact_text", "If you want to support the project or donate for the cats, please message <b>%s</b>.")
+	set(LangRU, "donation_contact_text", "Если хотите поддержать проект или сделать пожертвование для котиков — напишите в <b>%s</b>.")
+
+	set(LangEN, "donation_btn_open_chat", "Open chat")
+	set(LangRU, "donation_btn_open_chat", "Открыть чат")
+
+	set(LangEN, "donation_btn_back", "Back")
+	set(LangRU, "donation_btn_back", "Назад")
+
+	set(LangEN, "donation_btn_done", "Done ✅")
+	set(LangRU, "donation_btn_done", "Готово ✅")
+
+	set(LangEN, "donation_btn_events", "Events")
+	set(LangRU, "donation_btn_events", "Ивенты")
+
+	set(LangEN, "donation_btn_cowork", "Booking")
+	set(LangRU, "donation_btn_cowork", "Бронирование")
+
+	set(LangEN, "donation_btn_home", "Home")
+	set(LangRU, "donation_btn_home", "Главное меню")
+
+	set(LangEN, "donation_thanks", "Thank you for your support ✨")
+	set(LangRU, "donation_thanks", "Спасибо за поддержку ✨")
+
+	set(LangEN, "donation_always", "Any support matters. See you at LAN ❤️")
+	set(LangRU, "donation_always", "Любая поддержка важна. До встречи в LAN ❤️")
 }

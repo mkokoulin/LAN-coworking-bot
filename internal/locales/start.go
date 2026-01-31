@@ -22,8 +22,10 @@ func registerStart() {
 		• /printout — send docs to print
 
 		<b>Bar</b>
-		• /bar — coffee bar (menu & orders). <i>Full menu:</i> <b>/menu</b> 🍷
-
+		• /menu — full bar menu
+		` +
+		// `• /bar — coffee bar (menu & orders). <i>Full menu:</i> <b>/menu</b> ` +🍷
+		`
 		<b>Info</b>
 		• /events — events info
 		• /about — about & map
@@ -56,8 +58,10 @@ func registerStart() {
 		• /printout — печать документов
 
 		<b>Бар</b>
-		• /bar — бар (заказы и меню). <i>Полное меню:</i> <b>/menu</b> 🍷
-
+		• /menu — полное меню бара
+		` +
+		// `• /bar — бар (заказы и меню). <i>Полное меню:</i> <b>/menu</b> ` +🍷
+		`
 		<b>Инфо</b>
 		• /events — события
 		• /about — инфо и карта
