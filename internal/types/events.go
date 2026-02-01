@@ -8,12 +8,13 @@ import (
 )
 
 type Event struct {
-	ID          string `json:"id"`          // уникальный идентификатор
-	Date        string `json:"date"`        // "2006-01-02" или "02.01.2006"
-	Name        string `json:"name"`        // название
-	Description string `json:"description"` // описание (возможен HTML)
-	ShowForm    bool   `json:"showForm"`    // показывать в списке
-	Capacity    int    `json:"capacity"`    // вместимость; 0 — без лимита
+	ID          string `json:"id"`          
+	Date        string `json:"date"`        
+	Name        string `json:"name"`        
+	Description string `json:"description"`
+	ShowForm    bool   `json:"showForm"`
+	Capacity    int    `json:"capacity"` 
+	ExternalLink string `json:"externalLink"`
 }
 
 // UnmarshalJSON — ест capacity как число ИЛИ строку.
@@ -26,6 +27,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		Description string          `json:"description"`
 		ShowForm    bool            `json:"showForm"`
 		Capacity    json.RawMessage `json:"capacity"`
+		ExternalLink string          `json:"externalLink"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -36,6 +38,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Name = aux.Name
 	e.Description = aux.Description
 	e.ShowForm = aux.ShowForm
+	e.ExternalLink = aux.ExternalLink
 
 	// capacity отсутствует / null => 0
 	if len(aux.Capacity) == 0 || string(aux.Capacity) == "null" {

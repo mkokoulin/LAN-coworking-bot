@@ -9,6 +9,7 @@ const (
 	FlowMeeting       types.Flow = "meetingroom"
 	MeetPrompt        types.Step = "meeting:prompt"
 	MeetWaitInterval  types.Step = "meeting:wait_interval"
+	MeetWaitContact  types.Step = "meet.wait_contact"
 	MeetNotify        types.Step = "meeting:notify"
 	MeetDone          types.Step = "meeting:done"
 )

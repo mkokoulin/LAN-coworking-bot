@@ -143,6 +143,15 @@ func list(ctx context.Context, _ botengine.Event, d botengine.Deps, s *types.Ses
 		}
 
 		url := fmt.Sprintf("https://lettersandnumbers.am/events/%s", eventID(e))
+		ext := normalizeURL(e.ExternalLink)
+
+		if ext != "" {
+			sb.WriteString(fmt.Sprintf("<a href=\"%s\">Регистрация у партнёра →</a>\n", htmlEscape(ext)))
+			sb.WriteString(fmt.Sprintf("<a href=\"%s\">Страница события →</a>\n\n", htmlEscape(url)))
+		} else {
+			sb.WriteString(fmt.Sprintf("<a href=\"%s\">Подробнее →</a>\n\n", htmlEscape(url)))
+		}
+
 		used := counts[eventID(e)]
 		left := 0
 		if e.Capacity > 0 {
@@ -162,6 +171,19 @@ func list(ctx context.Context, _ botengine.Event, d botengine.Deps, s *types.Ses
 		}
 		sb.WriteString(fmt.Sprintf("<a href=\"%s\">Подробнее →</a>\n\n", htmlEscape(url)))
 
+		ext = normalizeURL(e.ExternalLink)
+
+		if ext != "" {
+			// Текст: что регистрацию ведёт партнёр
+			sb.WriteString("Регистрацию ведёт наш партнёр — по кнопке ниже.\n\n")
+
+			// Кнопка: URL вместо callback
+			btn := tgbotapi.NewInlineKeyboardButtonURL("🔗 Зарегистрироваться", ext)
+			rows = append(rows, ui.Row(btn))
+			continue
+		}
+
+		// обычная регистрация через бота — как было
 		if e.Capacity > 0 && left == 0 {
 			rows = append(rows, ui.Row(ui.Cb("⛔ Мест нет", "noop")))
 		} else {
@@ -395,14 +417,12 @@ func regStart(ctx context.Context, ev botengine.Event, d botengine.Deps, s *type
 		}
 	}
 
-	// Заголовок блока
 	if e != nil {
 		tstr := dateShort(t, s.Lang)
 		header := fmt.Sprintf("Регистрация: %s — %s", strings.TrimSpace(e.Name), tstr)
 		_ = ui.SendText(d.Bot, s.ChatID, header)
 	}
 
-	// Если профиль уже есть — спрашиваем только гостей/комментарий
 	if profileComplete(s) {
 		_ = ui.SendText(d.Bot, s.ChatID, "Сколько гостей придёт? (число, по умолчанию 1)")
 		return EventsRegAskGuests, nil
@@ -477,7 +497,6 @@ func sendConfirmUI(ctx context.Context, d botengine.Deps, s *types.Session) {
 	email, _ := profGet(s, keyProfEmail)
 	phone, _ := profGet(s, keyProfPhone)
 	tg, _ := profGet(s, keyProfTelegram)
-	dateStr := humanEventDate(ctx, d, s)
 
 	gstr, _ := stGet(ctx, d, s.ChatID, keyRegGuests)
 	if gstr == "" {
@@ -490,12 +509,11 @@ func sendConfirmUI(ctx context.Context, d botengine.Deps, s *types.Session) {
 	}
 
 	summary := fmt.Sprintf(
-		"Проверьте данные:\n\nИмя: <b>%s</b>\nEmail: <b>%s</b>\nТелефон: <b>%s</b>\nTelegram: <b>%s</b>\nДата: <b>%s</b>\nГостей: <b>%d</b>\nКомментарий: %s\n",
+		"Проверьте данные:\n\nИмя: <b>%s</b>\nEmail: <b>%s</b>\nТелефон: <b>%s</b>\nTelegram: <b>%s</b>\nГостей: <b>%d</b>\nКомментарий: %s\n",
 		htmlEscape(name),
 		htmlEscape(email),
 		htmlEscape(phone),
 		htmlEscape(tg),
-		htmlEscape(dateStr),
 		guests,
 		htmlEscape(comment),
 	)
@@ -797,13 +815,6 @@ func updateWillCome(ctx context.Context, d botengine.Deps, s *types.Session, eve
 	// id записи с бэка, если есть
 	entryID, _ := stGet(ctx, d, s.ChatID, keyRegEntryID)
 
-	// по умолчанию дату НЕ отправляем (чтобы не перетирать поле на бэке)
-	var dateStr string
-	if strings.TrimSpace(entryID) == "" {
-		// если id ещё нет, отправим human-дату, чтобы бэк смог смэтчить
-		dateStr = eventDateHumanForUpdate(ctx, d, s, eventID)
-	}
-
 	p := updateEntriePayload{
 		Id:              entryID,
 		Name:            name,
@@ -814,9 +825,6 @@ func updateWillCome(ctx context.Context, d botengine.Deps, s *types.Session, eve
 		EventId:         eventID,
 		Comment:         comment,
 		WillCome:        will,
-	}
-	if strings.TrimSpace(dateStr) != "" {
-		p.Date = dateStr
 	}
 
 	b, _ := json.Marshal(p)
@@ -875,7 +883,7 @@ func regCancelDo(ctx context.Context, ev botengine.Event, d botengine.Deps, s *t
 			_ = stSet(ctx, d, s.ChatID, remStatusKey(evID), "canceled")
 			cancelTimers(s.ChatID, evID)
 			if err := updateWillCome(ctx, d, s, evID, false); err != nil {
-				_ = ui.SendText(d.Bot, s.ChatID, "Не удалось отменить автоматически. Мы отметили у себя, но на всякий случай напишите нам: @lettersandnumbers_am 🙏")
+				_ = ui.SendText(d.Bot, s.ChatID, "Не удалось отменить автоматически. Мы отметили у себя, но на всякий случай напишите нам: @lan_yerevan 🙏")
 			} else {
 				_ = ui.SendText(d.Bot, s.ChatID, "Окей, мы отметили отмену. Если передумаете — снова жмякните /events ❤️")
 			}
@@ -1296,22 +1304,17 @@ func scheduleReminders(ctx context.Context, d botengine.Deps, s *types.Session) 
 }
 
 func sendReminder(d botengine.Deps, chatID int64, lang, eventID, tag string) {
-	// отправку блокируем только если уже отменено
 	if st, ok := stGet(context.Background(), d, chatID, remStatusKey(eventID)); ok && st == "canceled" {
 		return
 	}
 
-	// Попытаемся найти событие (для названия/времени)
 	name := "мероприятие"
-	dateStr := "скоро"
-	if e, t := loadEventByID(context.Background(), d, eventID); e != nil {
+	if e, _ := loadEventByID(context.Background(), d, eventID); e != nil {
 		if strings.TrimSpace(e.Name) != "" {
 			name = strings.TrimSpace(e.Name)
 		}
-		dateStr = formatRuHuman(t.In(userLoc(&types.Session{Lang: lang})))
 	}
 
-	// Текст
 	var prefix string
 	switch tag {
 	case "D-1":
@@ -1331,7 +1334,7 @@ func sendReminder(d botengine.Deps, chatID int64, lang, eventID, tag string) {
 	}
 
 	msg := fmt.Sprintf("%s о событии «%s» — <b>%s</b>.\n\nПодтверди участие или, если планы поменялись, отмени пожалуйста 🙏",
-		prefix, htmlEscape(name), htmlEscape(dateStr))
+		prefix, htmlEscape(name))
 
 	kb := ui.Inline(
 		ui.Row(
@@ -1394,7 +1397,7 @@ func remindHandle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 		_ = stSet(ctx, d, s.ChatID, remStatusKey(evID), "canceled")
 		cancelTimers(s.ChatID, evID)
 		if err := updateWillCome(ctx, d, s, evID, false); err != nil {
-			_ = ui.SendText(d.Bot, s.ChatID, "Мы отменили локально ❌ Но сервер сейчас недоступен, на всякий случай напишите нам: @lettersandnumbers_am")
+			_ = ui.SendText(d.Bot, s.ChatID, "Мы отменили локально ❌ Но сервер сейчас недоступен, на всякий случай напишите нам: @lan_yerevan")
 		} else {
 			_ = ui.SendText(d.Bot, s.ChatID, "Окей, отменили запись. Если планы изменятся — загляните в /events ❤️")
 		}
@@ -1402,4 +1405,16 @@ func remindHandle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 
 	s.Flow, s.Step = "", ""
 	return EventsDone, nil
+}
+
+func normalizeURL(u string) string {
+	u = strings.TrimSpace(u)
+	if u == "" {
+		return ""
+	}
+	// Telegram URL-кнопка любит полный URL. Если партнёр прислал без схемы — подправим.
+	if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+		return u
+	}
+	return "https://" + u
 }

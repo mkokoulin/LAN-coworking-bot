@@ -1,11 +1,53 @@
 package botengine
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/mkokoulin/LAN-coworking-bot/internal/state"
 	"github.com/mkokoulin/LAN-coworking-bot/internal/types"
 )
+
+
+type UserRef struct {
+	ID        int64
+	Username  string // without "@", empty if hidden
+	FirstName string
+	LastName  string
+	// можно потом добавить LanguageCode и т.п.
+}
+
+func (u UserRef) HasUsername() bool { return u.Username != "" }
+
+func (u UserRef) AtUsername() string {
+	if u.Username == "" {
+		return ""
+	}
+	return "@" + u.Username
+}
+
+func (u UserRef) FullName() string {
+	switch {
+	case u.FirstName != "" && u.LastName != "":
+		return u.FirstName + " " + u.LastName
+	case u.FirstName != "":
+		return u.FirstName
+	case u.LastName != "":
+		return u.LastName
+	default:
+		return ""
+	}
+}
+
+func (u UserRef) Label() string {
+	if u.Username != "" {
+		return "@" + u.Username
+	}
+	if name := u.FullName(); name != "" {
+		return name + " (id:" + strconv.FormatInt(u.ID, 10) + ")"
+	}
+	return "id:" + strconv.FormatInt(u.ID, 10)
+}
 
 type EventKind int
 
@@ -20,6 +62,8 @@ type Event struct {
 	InlineMessageID string
 	FromUserName    string
 	FromUserID      int64
+
+	From UserRef
 }
 
 type FlowEntry struct {

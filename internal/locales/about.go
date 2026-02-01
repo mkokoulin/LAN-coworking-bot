@@ -21,7 +21,7 @@ func registerAbout() {
 		The café hall and the yard are non-quiet zones (except window tables on terrace #1):
 		meetings, calls and meals are fine. You can bring food (store via barista), order delivery, or buy in our café.
 
-		🕜 Coworking hours: weekdays 10–22, weekends 10–18. The venue is open daily 10–22.
+		🕜 Coworking hours: weekdays 10–22, weekends 10–16. The venue is open daily 10–22.
 	`))
 
 	set(LangRU, "about_text", s(`
@@ -44,6 +44,6 @@ func registerAbout() {
 		☕ Зал кофейни и двор — шумные зоны (кроме столиков у окна на террасе №1): встречи, звонки, приём пищи разрешены.
 		Еду можно принести (хранение через бариста), заказать доставку или купить у нас.
 
-		🕜 Коворкинг: будни 10–22, выходные 10–18. Площадка ежедневно 10–22.
+		🕜 Коворкинг: будни 10–22, выходные 10–16. Площадка ежедневно 10–22.
 	`))
 }

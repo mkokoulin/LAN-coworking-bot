@@ -42,7 +42,6 @@ func (s *EventsService) ListUpcoming(ctx context.Context) ([]types.Event, error)
 		return nil, fmt.Errorf("events json: %w", err)
 	}
 
-	// фильтр + сортировка по дате
 	out := make([]types.Event, 0, len(all))
 	for _, e := range all {
 		if !e.ShowForm {

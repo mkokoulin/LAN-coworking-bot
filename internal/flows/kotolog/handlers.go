@@ -31,6 +31,8 @@ type Cat struct {
 	ArticleURL string // ссылка на Telegra.ph (Instant View)
 }
 
+const kotologViewURL = "https://www.canva.com/design/DAGRxCeCUy0/_kGPED4IzghEra57q2IRZw/view"
+
 // Seed-список
 var kotologCats = []Cat{
 	{ID: "simba", Name: "Симба", Age: "1,5 месяца", Sex: "мальчик", Sterilized: false, Vaccinated: false, Character: "Очень деловой малыш; на передержке; обработан от паразитов; любит ласку, но не сидит на руках; очень подвижный.", City: "Ереван", Contacts: "@lan_yerevan", PhotoURL: "internal/assets/simba.png"},
@@ -59,29 +61,27 @@ func home(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Se
 	if ev.Kind == botengine.EventCallback {
 		ackCallback(d, ev)
 		switch {
-		case strings.HasPrefix(ev.CallbackData, "kotolog:list:"):
-			// Внутренняя переадресация → сразу продолжаем
-			s.Step = KotologList
-			return botengine.InternalContinue, nil
+		// ✅ удаляем обработку "kotolog:list:*" — больше не нужна
 		case ev.CallbackData == "kotolog:help":
 			s.Step = KotologHelp
 			return botengine.InternalContinue, nil
 		case ev.CallbackData == "kotolog:home":
 			// Покажем интро ниже без смены шага
 		default:
-			// На всякий случай вернёмся на home
 			s.Step = KotologHome
-			// и просто отрисуем ниже
 		}
 	}
 
 	kb := ui.Inline(
-		ui.Row(ui.Cb(p.Sprintf("kotolog_btn_view"), "kotolog:list:p1")),
+		// ✅ URL-кнопка вместо callback
+		ui.Row(tgbotapi.NewInlineKeyboardButtonURL(p.Sprintf("kotolog_btn_view"), kotologViewURL)),
 		ui.Row(ui.Cb(p.Sprintf("kotolog_btn_help"), "kotolog:help")),
 	)
+
 	sendOrEditHTML(d, s, ev, p.Sprintf("kotolog_intro"), kb)
 	return KotologHome, nil
 }
+
 
 func list(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	p := d.Printer(s.Lang)
@@ -227,8 +227,7 @@ func help(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Se
 	text := helpText + "\n\n" + donateNote
 
 	kb := ui.Inline(
-		ui.Row(ui.Cb("🐾 "+p.Sprintf("kotolog_btn_view"), "kotolog:list:p1")),
-		ui.Row(ui.Cb(p.Sprintf("kotolog_btn_copy_card"), "kotolog:copy_card")), // ← новая кнопка
+		ui.Row(tgbotapi.NewInlineKeyboardButtonURL(p.Sprintf("kotolog_btn_view"), kotologViewURL)),
 		ui.Row(ui.Cb(p.Sprintf("kotolog_btn_back"), "kotolog:home")),
 	)
 	sendOrEditHTML(d, s, ev, text, kb)

@@ -74,7 +74,7 @@ type regPayload struct {
 	Phone           string `json:"phone"`
 	NumberOfPersons string `json:"numberOfPersons"`
 	Telegram        string `json:"telegram"`
-	Date            string `json:"date"` // «ср 20 августа. 19:30»
+	Date            string `json:"date"`
 	EventID         string `json:"eventId"`
 	Comment         string `json:"comment"`
 }

@@ -6,6 +6,18 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+func userRefFromTg(u *tgbotapi.User) UserRef {
+	if u == nil {
+		return UserRef{}
+	}
+	return UserRef{
+		ID:        int64(u.ID),
+		Username:  u.UserName,
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+	}
+}
+
 func Classify(u tgbotapi.Update) Event {
 	var ev Event
 
@@ -29,6 +41,8 @@ func Classify(u tgbotapi.Update) Event {
 		if strings.HasPrefix(ev.CallbackData, "/") {
 			ev.Command = normalizeCommand(ev.CallbackData)
 		}
+
+		ev.From = userRefFromTg(u.CallbackQuery.From)
 		return ev
 	}
 
@@ -46,6 +60,9 @@ func Classify(u tgbotapi.Update) Event {
 		} else {
 			ev.Kind = EventText
 		}
+
+		ev.From = userRefFromTg(u.Message.From)
+
 		return ev
 	}
 

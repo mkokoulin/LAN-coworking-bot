@@ -1,14 +1,15 @@
 package locales
 
 func registerKotolog() {
-	set(LangEN, "kotolog_btn_copy_card", "📋 Copy card number")
-	set(LangRU, "kotolog_btn_copy_card", "📋 Скопировать номер карты")
-
 	set(LangEN, "kotolog_copy_msg", "Here is the number — long-press to copy:\n<code>%s</code>")
 	set(LangRU, "kotolog_copy_msg", "Вот номер — удерживайте, чтобы скопировать:\n<code>%s</code>")
 
-	set(LangEN, "kotolog_donate_note", "💛 <b>How to support</b>\nYou can send a donation to the card <code>%s</code>.\nPlease include <code>lan cats</code> in the payment title so we know it’s for the cats. Thank you 🐾")
-	set(LangRU, "kotolog_donate_note", "💛 <b>Как поддержать</b>\nМожно оставить донат на карту <code>%s</code>.\nПожалуйста, укажите в названии платежа <code>lan cats</code> — так мы поймём, что это на котиков. Спасибо 🐾")
+	set(LangEN, "kotolog_donate_note",
+	"💬 <b>Contact us</b>\nWrite to @lan_yerevan — we’ll tell you how you can help 🐾",
+)
+set(LangRU, "kotolog_donate_note",
+	"💬 <b>Связаться с нами</b>\nНапишите в @lan_yerevan — подскажем, как можно помочь 🐾",
+)
 
 	set(LangEN, "kotolog_btn_back", "⬅️ Back")
 	set(LangRU, "kotolog_btn_back", "⬅️ Назад")

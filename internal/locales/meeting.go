@@ -1,3 +1,4 @@
+// internal/locales/meeting.go
 package locales
 
 func registerMeeting() {
@@ -34,6 +35,14 @@ func registerMeeting() {
 	set(LangEN, "meeting_confirm_interval", "✅ Booking sent for confirmation: %s")
 	set(LangRU, "meeting_confirm_interval", "✅ Бронь отправлена на подтверждение: %s")
 
-	set(LangEN, "meeting_request_admin", "Meeting room request: %s")
-	set(LangRU, "meeting_request_admin", "Заявка на переговорку: %s")
+	// UPDATED: now takes 2 placeholders: interval + contact
+	set(LangEN, "meeting_request_admin", "Meeting room request: %s\nContact: %s")
+	set(LangRU, "meeting_request_admin", "Заявка на переговорку: %s\nКонтакт: %s")
+
+	// NEW: ask for contact when username is missing
+	set(LangEN, "meeting_need_contact", "✅ Booking drafted: %s\nI can’t see your Telegram username. Please send how to contact you (e.g. @handle or t.me link).")
+	set(LangRU, "meeting_need_contact", "✅ Черновик брони: %s\nЯ не вижу ваш username в Telegram. Напишите, как с вами связаться (например @ник или ссылку t.me).")
+
+	set(LangEN, "meeting_contact_too_long", "❌ Contact is too long. Please send a shorter handle/link.")
+	set(LangRU, "meeting_contact_too_long", "❌ Слишком длинный контакт. Пришлите покороче (ник/ссылка).")
 }
