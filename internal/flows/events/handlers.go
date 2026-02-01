@@ -493,6 +493,8 @@ func currentEventID(ctx context.Context, d botengine.Deps, s *types.Session) str
 }
 
 func sendConfirmUI(ctx context.Context, d botengine.Deps, s *types.Session) {
+	deleteCheckMessage(ctx, d, s.ChatID)
+
 	name, _ := profGet(s, keyProfName)
 	email, _ := profGet(s, keyProfEmail)
 	phone, _ := profGet(s, keyProfPhone)
@@ -533,9 +535,18 @@ func sendConfirmUI(ctx context.Context, d botengine.Deps, s *types.Session) {
 		ui.Row(ui.Cb("❌ Отменить регистрацию", "events:rc:ask")),
 	)
 
-	if err := ui.SendHTML(d.Bot, s.ChatID, summary, kb); err != nil {
+	msg := tgbotapi.NewMessage(s.ChatID, summary)
+	msg.ParseMode = "HTML"
+	msg.ReplyMarkup = kb
+
+	sent, err := d.Bot.Send(msg)
+	if err != nil {
 		_ = ui.SendText(d.Bot, s.ChatID, "Не удалось отправить подтверждение, попробуйте ещё раз.")
+		return
 	}
+
+	// ✅ сохраняем id сообщения “Проверьте данные…”
+	_ = stSet(ctx, d, s.ChatID, "reg.check_msg_id", strconv.Itoa(sent.MessageID))
 }
 
 func regAskGuests(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
@@ -742,6 +753,8 @@ func regSubmit(ctx context.Context, _ botengine.Event, d botengine.Deps, s *type
 	// Сохраним «человеческую» дату, отправленную на POST, чтобы не затирать её апдейтами
 	_ = stSet(ctx, d, s.ChatID, keyRegDateHuman, dateHuman)
 
+	deleteCheckMessage(ctx, d, s.ChatID)
+
 	text := "Спасибо за регистрацию! 🎉\n\n" +
 		"Пожалуйста, не закрывайте и не удаляйте бота — иначе мы не сможем прислать напоминание и важные детали мероприятия.\n" +
 		"Если что-то изменится — просто напишите нам сюда в чат.\n\n" +
@@ -875,17 +888,44 @@ func regCancelDo(ctx context.Context, ev botengine.Event, d botengine.Deps, s *t
 	switch {
 	case strings.HasPrefix(ev.CallbackData, "events:rc:yes:"):
 		evID = strings.TrimPrefix(ev.CallbackData, "events:rc:yes:")
+	
 		if evID == "" {
 			evID = currentEventID(ctx, d, s)
 		}
 
+		deleteCheckMessage(ctx, d, s.ChatID)
+
+
 		if evID != "" {
 			_ = stSet(ctx, d, s.ChatID, remStatusKey(evID), "canceled")
 			cancelTimers(s.ChatID, evID)
+
+			if !hasEntryID(ctx, d, s) {
+				// чистим только текущую черновую регистрацию (минимально)
+				_ = stDel(ctx, d, s.ChatID, keyRegGuests)
+				_ = stDel(ctx, d, s.ChatID, keyRegComment)
+				_ = stDel(ctx, d, s.ChatID, keyRegCapacity)
+				_ = stDel(ctx, d, s.ChatID, keyRegEventID)
+				_ = stDel(ctx, d, s.ChatID, keyRegEventDate)
+				_ = stDel(ctx, d, s.ChatID, keyRegDateHuman)
+
+				// гасим таймеры/статус на всякий
+				if evID != "" {
+					_ = stDel(ctx, d, s.ChatID, remStatusKey(evID))
+					cancelTimers(s.ChatID, evID)
+				}
+
+				_ = ui.SendText(d.Bot, s.ChatID, "Окей, отменили заполнение. Ничего не отправляли 🙂")
+				s.Flow, s.Step = "", ""
+				return EventsDone, nil
+			}
+
 			if err := updateWillCome(ctx, d, s, evID, false); err != nil {
-				_ = ui.SendText(d.Bot, s.ChatID, "Не удалось отменить автоматически. Мы отметили у себя, но на всякий случай напишите нам: @lan_yerevan 🙏")
+				_ = ui.SendText(d.Bot, s.ChatID,
+					"Не удалось отменить автоматически. Мы отметили у себя, но на всякий случай напишите нам: @lan_yerevan 🙏")
 			} else {
-				_ = ui.SendText(d.Bot, s.ChatID, "Окей, мы отметили отмену. Если передумаете — снова жмякните /events ❤️")
+				_ = ui.SendText(d.Bot, s.ChatID,
+					"Окей, отменили запись. Если передумаете — снова жмякните /events ❤️")
 			}
 		}
 
@@ -1396,10 +1436,13 @@ func remindHandle(ctx context.Context, ev botengine.Event, d botengine.Deps, s *
 	case "cancel":
 		_ = stSet(ctx, d, s.ChatID, remStatusKey(evID), "canceled")
 		cancelTimers(s.ChatID, evID)
+
 		if err := updateWillCome(ctx, d, s, evID, false); err != nil {
-			_ = ui.SendText(d.Bot, s.ChatID, "Мы отменили локально ❌ Но сервер сейчас недоступен, на всякий случай напишите нам: @lan_yerevan")
+			_ = ui.SendText(d.Bot, s.ChatID,
+				"Мы отменили локально ❌ Но сервер сейчас недоступен, на всякий случай напишите нам: @lan_yerevan")
 		} else {
-			_ = ui.SendText(d.Bot, s.ChatID, "Окей, отменили запись. Если планы изменятся — загляните в /events ❤️")
+			_ = ui.SendText(d.Bot, s.ChatID,
+				"Окей, отменили запись. Если планы изменятся — загляните в /events ❤️")
 		}
 	}
 
@@ -1417,4 +1460,66 @@ func normalizeURL(u string) string {
 		return u
 	}
 	return "https://" + u
+}
+
+
+type cancelEntriePayload struct {
+	Id string `json:"id"`
+}
+
+type CancelEntrieResponse struct {
+	Id string `json:"id" mapstructure:"id"`
+}
+
+func cancelEntry(ctx context.Context, entryID string) error {
+	entryID = strings.TrimSpace(entryID)
+	if entryID == "" {
+		return fmt.Errorf("empty entryID")
+	}
+
+	body := cancelEntriePayload{Id: entryID}
+	b, _ := json.Marshal(body)
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, cancelEntryEndpoint, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("cancel returned %d", resp.StatusCode)
+	}
+
+	// если хочется — можем прочитать ответ (не обязательно)
+	var out CancelEntrieResponse
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+
+	return nil
+}
+
+func hasEntryID(ctx context.Context, d botengine.Deps, s *types.Session) bool {
+	id, _ := stGet(ctx, d, s.ChatID, keyRegEntryID)
+	return strings.TrimSpace(id) != ""
+}
+
+func deleteCheckMessage(ctx context.Context, d botengine.Deps, chatID int64) {
+	raw, ok := stGet(ctx, d, chatID, "reg.check_msg_id")
+	if !ok || raw == "" {
+		return
+	}
+	id, err := strconv.Atoi(raw)
+	if err != nil {
+		return
+	}
+
+	_, _ = d.Bot.Request(tgbotapi.DeleteMessageConfig{
+		ChatID:    chatID,
+		MessageID: id,
+	})
+
+	// чтобы не пытаться удалить повторно
+	_ = stSet(ctx, d, chatID, "reg.check_msg_id", "")
 }

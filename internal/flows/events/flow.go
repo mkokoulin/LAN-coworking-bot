@@ -12,6 +12,7 @@ const (
 	eventsURLFallback    = "https://shark-app-wrcei.ondigitalocean.app/api/events"
 	registrationEndpoint = "https://shark-app-wrcei.ondigitalocean.app/api/entries"
 	updateEntryEndpoint  = "https://shark-app-wrcei.ondigitalocean.app/api/entries/update"
+	cancelEntryEndpoint  = "https://shark-app-wrcei.ondigitalocean.app/api/entries/cancel"
 )
 
 const (
