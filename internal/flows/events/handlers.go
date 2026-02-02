@@ -145,13 +145,6 @@ func list(ctx context.Context, _ botengine.Event, d botengine.Deps, s *types.Ses
 		url := fmt.Sprintf("https://lettersandnumbers.am/events/%s", eventID(e))
 		ext := normalizeURL(e.ExternalLink)
 
-		if ext != "" {
-			sb.WriteString(fmt.Sprintf("<a href=\"%s\">Регистрация у партнёра →</a>\n", htmlEscape(ext)))
-			sb.WriteString(fmt.Sprintf("<a href=\"%s\">Страница события →</a>\n\n", htmlEscape(url)))
-		} else {
-			sb.WriteString(fmt.Sprintf("<a href=\"%s\">Подробнее →</a>\n\n", htmlEscape(url)))
-		}
-
 		used := counts[eventID(e)]
 		left := 0
 		if e.Capacity > 0 {

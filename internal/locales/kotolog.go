@@ -52,21 +52,23 @@ set(LangRU, "kotolog_donate_note",
 	set(LangEN, "kotolog_contacts", "Volunteer contacts")
 	set(LangRU, "kotolog_contacts", "Контакты волонтёров")
 
-	set(LangEN, "kotolog_help_text", s(`<b>How to help 🐾😺</b>
+	set(LangEN, "kotolog_help_text", s(`<b>How to Help the Kitties 🐾😺</b>
 
-1) 😺📚 <b>Charity book swap</b> — bring books you no longer need. Donations help with food and care. 🐈
-2) 😺🎤 <b>Talks</b> — pay what you wish. All proceeds support cats. 🐱
-3) 😺📚 <b>Bookshelf</b> — take a book for any donation. 🐈‍⬛
-4) 😺☕️ <b>Suspended drinks</b> — prepay a drink for someone; the money goes to cats. 🐾
+1) 😺📚 <b>😺📚 Book Shelf </b> — take a book in exchange for a donation of any amount. All proceeds go toward food and medical care. 🐈
+2) 😺🎤 <b>😽📕 Book Swap</b> — bring books you no longer need for free and help keep the circle of kindness going. 🐈‍⬛
+3) 😺📚 <b>😻🎏 Food</b> — bring any cat food or treats your cats won’t eat. Ours will happily finish everything! 🐟
+4) 😺☕️ <b>😸🎴 Merch</b> — buy stickers, postcards, and cookies featuring our cats. Each one is one of a kind! 🐆
+4) 😺☕️ <b>😼💰 Donation</b> — simple and clear. Leave any amount in cash or by card to support the one who curls up on your lap in our café. Maybe it’s love! 🐾
 
 More about our projects — @lan_yerevan. We’ll be happy to chat! 😺`))
 
 	set(LangRU, "kotolog_help_text", s(`<b>Как помочь котикам 🐾😺</b>
 
-1) 😺📚 <b>Книжный своп</b> — приносите книги, которые уже не нужны. Пожертвования идут на корм и лечение. 🐈
-2) 😺🎤 <b>Лекции и беседы</b> — формат «сколько не жалко». Все средства на поддержку котиков. 🐱
-3) 😺📚 <b>Книжная полка</b> — берите книгу за донат любой суммы. 🐈‍⬛
-4) 😺☕️ <b>Отложенные напитки</b> — предоплатите напиток; деньги идут котикам. 🐾
+1) 😺📚 <b>😺📚 Книжная полка</b> — берите книгу за донат любой суммы. Все пожертвования идут на корм и лечение. 🐈 🐈 🐈
+2) 😺🎤 <b>😽📕 Книжный своп</b> — безвозмездно приносите книги, которые уже не нужны, чтобы продолжить круговорот помощи. 🐈‍⬛
+3) 😺📚 <b>😻🎏 Корм</b> — приносите любой корм и лакомства, которые ваши котики не едят. Наши съедят все! 🐟
+4) 😺☕️ <b>😸🎴Мерч</b> — покупайте наклейки, открытки и печенья с изображением наших котиков. Каждый из них индивидуален! 🐆
+4) 😺☕️ <b>😼💰Донат</b> — просто и понятно. Оставьте любую сумму наличными или по карте для поддержки того, кто сел к вам на коленки в нашей кофейне. Может быть это по любви!🐾
 
 Больше о проектах — @lan_yerevan. Будем рады пообщаться! 😺`))
 
