@@ -30,7 +30,6 @@ const (
 
 func prompt(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
 	p := d.Printer(s.Lang)
-	_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("meeting_prompt"))
 
 	kb := calendarKeyboard(time.Now())
 	_ = ui.SendHTML(d.Bot, s.ChatID, p.Sprintf("meeting_pick_date"), kb)

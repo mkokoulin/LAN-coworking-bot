@@ -2,9 +2,6 @@
 package locales
 
 func registerMeeting() {
-	set(LangEN, "meeting_prompt", "Write the date and time interval to book a meeting room in the format YYYY-MM-DD HH:MM - HH:MM")
-	set(LangRU, "meeting_prompt", "Напишите дату и интервал времени для бронирования переговорки в формате ГГГГ-ММ-ДД ЧЧ:ММ - ЧЧ:ММ")
-
 	set(LangEN, "meeting_empty", "The message cannot be empty")
 	set(LangRU, "meeting_empty", "Сообщение не может быть пустым")
 
