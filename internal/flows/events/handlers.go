@@ -167,12 +167,17 @@ func list(ctx context.Context, _ botengine.Event, d botengine.Deps, s *types.Ses
 		ext = normalizeURL(e.ExternalLink)
 
 		if ext != "" {
-			// Текст: что регистрацию ведёт партнёр
-			sb.WriteString("Регистрацию ведёт наш партнёр — по кнопке ниже.\n\n")
+			_ = stSet(ctx, d, s.ChatID, keyExtURLPrefix+eventID(e), ext)
 
-			// Кнопка: URL вместо callback
-			btn := tgbotapi.NewInlineKeyboardButtonURL("🔗 Зарегистрироваться", ext)
-			rows = append(rows, ui.Row(btn))
+			// кнопка выглядит как обычная регистрация, но ведёт в подтверждение
+			dt := dateShort(tm, s.Lang)
+			base := fmt.Sprintf("📝 %s — %s", dt, name)
+			lbl := shortRunes(base, 60)
+			if e.Capacity > 0 {
+				lbl = shortRunes(fmt.Sprintf("%s • %d", base, left), 60)
+			}
+
+			rows = append(rows, ui.Row(ui.Cb(lbl, "events:ext:ask:"+eventID(e))))
 			continue
 		}
 
@@ -1515,4 +1520,63 @@ func deleteCheckMessage(ctx context.Context, d botengine.Deps, chatID int64) {
 
 	// чтобы не пытаться удалить повторно
 	_ = stSet(ctx, d, chatID, "reg.check_msg_id", "")
+}
+
+func extAsk(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+    ackCB(d, ev)
+
+    if !strings.HasPrefix(ev.CallbackData, "events:ext:ask:") {
+        return EventsDone, nil
+    }
+    evID := strings.TrimPrefix(ev.CallbackData, "events:ext:ask:")
+    if evID == "" {
+        return EventsDone, nil
+    }
+
+    // достанем ссылку (сохраняли в list())
+    ext, _ := stGet(ctx, d, s.ChatID, keyExtURLPrefix+evID)
+    ext = normalizeURL(ext)
+
+    // для “живости” — попробуем подтянуть имя/дату события
+    title := "это мероприятие"
+    if e, _ := loadEventByID(ctx, d, evID); e != nil {
+        if strings.TrimSpace(e.Name) != "" {
+            title = "«" + strings.TrimSpace(e.Name) + "»"
+        }
+    }
+
+    var msg strings.Builder
+    msg.WriteString("Тут запись ведёт наш партнёр 🤝\n")
+    msg.WriteString("Хотите перейти на их страницу регистрации")
+    if title != "" {
+        msg.WriteString(" для ")
+        msg.WriteString(title)
+    }
+    msg.WriteString("?\n\n")
+    msg.WriteString("Мы рядом, просто кнопки у партнёра живут отдельно 🙂")
+
+    var rows [][]tgbotapi.InlineKeyboardButton
+
+    if ext != "" {
+        rows = append(rows, ui.Row(tgbotapi.NewInlineKeyboardButtonURL("✅ Да, перейти", ext)))
+    } else {
+        // если вдруг ссылки нет — не тупим, просто сообщаем
+        rows = append(rows, ui.Row(ui.Cb("⚠️ Ссылка не найдена", "noop")))
+    }
+
+    rows = append(rows, ui.Row(ui.Cb("↩️ Нет, вернуться к списку", "events:back_to_list")))
+
+    kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
+    _ = ui.SendHTML(d.Bot, s.ChatID, htmlEscape(msg.String()), kb)
+
+    return EventsDone, nil
+}
+
+func backToList(ctx context.Context, ev botengine.Event, d botengine.Deps, s *types.Session) (types.Step, error) {
+    ackCB(d, ev)
+    if ev.CallbackData != "events:back_to_list" {
+        return EventsDone, nil
+    }
+    // просто рисуем список заново
+    return list(ctx, botengine.Event{}, d, s)
 }

@@ -50,6 +50,9 @@ const (
 	EventsRegEditTelegram types.Step = "events:reg_edit_telegram"
 
 	EventsRemindHandle types.Step = "events:rem_handle"
+
+	EventsExtAsk      types.Step = "events.ext.ask"
+	EventsBackToList  types.Step = "events.back_to_list"
 )
 
 const (
@@ -58,6 +61,8 @@ const (
 	keyProfPhone    = "profile:phone"
 	keyProfTelegram = "profile:telegram"
 )
+
+const keyExtURLPrefix = "events:ext:url:" // + eventID
 
 const (
 	keyRegCapacity   = "events:reg:capacity"
@@ -118,6 +123,9 @@ func Register(reg *botengine.Registry) {
 		EventsRegEditTelegram: regEditTelegram,
 
 		EventsRemindHandle: remindHandle,
+
+		EventsExtAsk: extAsk,
+		EventsBackToList: backToList,
 	})
 
 	reg.RegisterCommand("events",             botengine.FlowEntry{Flow: FlowEvents, Step: EventsList})
@@ -147,4 +155,8 @@ func Register(reg *botengine.Registry) {
 
 	reg.RegisterCallbackPrefix("events:rem:c:", botengine.FlowEntry{Flow: FlowEvents, Step: EventsRemindHandle}) // confirm
 	reg.RegisterCallbackPrefix("events:rem:x:", botengine.FlowEntry{Flow: FlowEvents, Step: EventsRemindHandle}) // cancel
+
+	reg.RegisterCallbackPrefix("events:ext:ask:", botengine.FlowEntry{Flow: FlowEvents, Step: EventsExtAsk})
+	reg.RegisterCallbackPrefix("events:back_to_list", botengine.FlowEntry{Flow: FlowEvents, Step: EventsBackToList})
+
 }
