@@ -17,6 +17,20 @@ type Guest struct {
 	Datetime  string `json:"datetime"  mapstructure:"datetime"`
 }
 
+type CoworkingRegistrationsService interface {
+	Create(ctx context.Context, reg CoworkingRegistration) error
+	GetPendingByChatID(ctx context.Context, chatID int64) (*CoworkingRegistration, error)
+	GetLatestApprovedByPhone(ctx context.Context, phone string) (*CoworkingRegistration, error)
+	GetLatestApprovedByChatID(ctx context.Context, chatID int64) (*CoworkingRegistration, error)
+	UpdateStatusByChatID(
+		ctx context.Context,
+		chatID int64,
+		status RegistrationStatus,
+		adminID int64,
+		comment string,
+	) error
+}
+
 type CoworkersSheetsService interface {
     ValidateSecret(ctx context.Context, code string) (bool, error)
     GetUnusedSecrets(ctx context.Context) ([]string, error)

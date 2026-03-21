@@ -24,7 +24,6 @@ func NewMongoManager(ctx context.Context, uri, dbName, collectionName string) (*
 	}
 	col := cl.Database(dbName).Collection(collectionName)
 
-	// Индексы под рассылку
 	_, _ = col.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "is_subscribed", Value: 1}}},
 		{Keys: bson.D{{Key: "next_digest_at", Value: 1}}},
@@ -79,17 +78,16 @@ func (m *mongoManager) Set(chatID int64, s *types.Session) {
 
 	doc := bson.M{
 		"_id":  chatID,
-		"lang": s.Lang, // чаще всего поле тегируется как `bson:"lang"`
+		"lang": s.Lang,
 		"flow": s.Flow,
 		"step": s.Step,
 		"data": s.Data,
 
-		// Подписка на анонсы
 		"is_subscribed":   s.IsSubscribed,
-		"events_sub_dow":  s.EventsSubDOW,    // 0..6
-		"events_sub_hour": s.EventsSubHour,   // 0..23
-		"events_sub_min":  s.EventsSubMinute, // 0..59
-		"next_digest_at":  s.NextDigestAt,    // UTC
+		"events_sub_dow":  s.EventsSubDOW,
+		"events_sub_hour": s.EventsSubHour,
+		"events_sub_min":  s.EventsSubMinute,
+		"next_digest_at":  s.NextDigestAt,
 	}
 
 	_, err := m.collection.UpdateByID(ctx, chatID, bson.M{"$set": doc}, options.Update().SetUpsert(true))
@@ -154,7 +152,6 @@ func (m *mongoManager) ListDue(now time.Time) ([]int64, error) {
 	return ids, cur.Err()
 }
 
-// SetNextDigestAt — атомарно переносит следующий запуск
 func (m *mongoManager) SetNextDigestAt(chatID int64, next time.Time) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -164,10 +161,6 @@ func (m *mongoManager) SetNextDigestAt(chatID int64, next time.Time) error {
 	return err
 }
 
-// NewFromEnv — выбрать менеджер из env или память
-// MONGO_URI=... (обязательно для включения Mongo)
-// MONGO_DB=lan-bot (по умолчанию)
-// MONGO_COLLECTION=sessions (по умолчанию)
 func NewFromEnv(ctx context.Context) (Manager, func(context.Context) error) {
 	uri := os.Getenv("MONGO_URI")
 	if uri == "" {

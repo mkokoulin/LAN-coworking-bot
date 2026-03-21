@@ -17,7 +17,6 @@ type Dispatcher struct {
 	svcs         types.Services
 	registry     *Registry
 	printerFunc  func(lang string) *message.Printer
-	// Если нужен CommandLogger — оставь поле и методы attach, но в рантайме он не обязателен
 }
 
 func NewDispatcher(bot *tgbotapi.BotAPI, cfg *config.Config, services types.Services, reg *Registry) *Dispatcher {
@@ -37,41 +36,40 @@ func (d *Dispatcher) Run(ctx context.Context) {
 	u.AllowedUpdates = []string{"message", "callback_query", "my_chat_member"}
 
 	updates := d.bot.GetUpdatesChan(u)
-
 	for update := range updates {
-		// фильтр
 		if update.Message == nil && update.CallbackQuery == nil && update.MyChatMember == nil {
 			continue
 		}
+
 		chatID := ResolveChatID(update)
 		if chatID == 0 {
 			continue
 		}
 
-		// 👉 берём ОДНУ и ту же сессию для чата из Registry.Store
 		sess := d.registry.Store.Get(chatID)
 
-		// deps
+		ev := Classify(update)
+
+		if ev.FromUserID != 0 {
+			sess.UserID = ev.FromUserID
+		}
+		if sess.Lang == "" {
+			sess.Lang = "ru"
+		}
+
 		deps := Deps{
 			Bot:        d.bot,
 			Cfg:        d.cfg,
 			Svcs:       d.svcs,
 			Printer:    d.printerFunc,
 			LastUpdate: update,
+			State:      d.registry.Store,
 		}
 
-		// событие
-		ev := Classify(update)
-
-		// FSM
 		if err := RunFSM(ctx, ev, d.registry, deps, sess); err != nil {
 			log.Printf("[dispatcher] fsm error: %v", err)
 		}
 
-		// 👉 сохраняем сессию после каждого апдейта
 		d.registry.Store.Set(sess.ChatID, sess)
-
-		
-		// ⚠️ НЕ дублируем AnswerCallback — ты уже зовёшь ui.AnswerCallback в шагах
 	}
 }

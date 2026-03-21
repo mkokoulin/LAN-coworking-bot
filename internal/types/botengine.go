@@ -2,10 +2,10 @@ package types
 
 type Services struct {
 	CoworkersSheets CoworkersSheetsService
-	GuestSheets     GuestSheetsService
-	BotLogsSheets   BotLogsSheetsService
-	Events         	EventsService
+	Guests          GuestSheetsService
+	BotLogs         BotLogsSheetsService
+	Events          EventsService
 	Subscriptions   SubscriptionsService
 
-	// BarCatalog      BarCatalogService
+	CoworkingRegistrations CoworkingRegistrationsService
 }

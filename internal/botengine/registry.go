@@ -52,7 +52,8 @@ func (u UserRef) Label() string {
 type EventKind int
 
 type Event struct {
-	Kind            EventKind
+	Kind EventKind
+
 	Command         string
 	Text            string
 	CallbackData    string
@@ -60,10 +61,15 @@ type Event struct {
 	ChatID          int64
 	MessageID       int
 	InlineMessageID string
-	FromUserName    string
-	FromUserID      int64
 
-	From UserRef
+	FromUserName string
+	FromUserID   int64
+	From         UserRef
+
+	HasContact       bool
+	ContactPhone     string
+	ContactUserID    int64
+	ContactFirstName string
 }
 
 type FlowEntry struct {

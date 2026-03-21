@@ -21,7 +21,6 @@ func userRefFromTg(u *tgbotapi.User) UserRef {
 func Classify(u tgbotapi.Update) Event {
 	var ev Event
 
-	// 1) Callback
 	if u.CallbackQuery != nil {
 		ev.Kind = EventCallback
 		if u.CallbackQuery.Message != nil {
@@ -37,23 +36,29 @@ func Classify(u tgbotapi.Update) Event {
 			ev.FromUserName = u.CallbackQuery.From.UserName
 			ev.FromUserID = u.CallbackQuery.From.ID
 		}
-		// Если callback содержит "/команду", сохраним её в ev.Command (ACK сделаем ниже в FSM).
 		if strings.HasPrefix(ev.CallbackData, "/") {
 			ev.Command = normalizeCommand(ev.CallbackData)
 		}
-
 		ev.From = userRefFromTg(u.CallbackQuery.From)
 		return ev
 	}
 
-	// 2) Message
 	if u.Message != nil {
 		ev.ChatID = u.Message.Chat.ID
 		ev.Text = u.Message.Text
+
 		if u.Message.From != nil {
 			ev.FromUserName = u.Message.From.UserName
 			ev.FromUserID = u.Message.From.ID
 		}
+
+		if u.Message.Contact != nil {
+			ev.HasContact = true
+			ev.ContactPhone = u.Message.Contact.PhoneNumber
+			ev.ContactFirstName = u.Message.Contact.FirstName
+			ev.ContactUserID = int64(u.Message.Contact.UserID)
+		}
+
 		if strings.HasPrefix(ev.Text, "/") {
 			ev.Kind = EventCommand
 			ev.Command = normalizeCommand(ev.Text)
@@ -62,11 +67,9 @@ func Classify(u tgbotapi.Update) Event {
 		}
 
 		ev.From = userRefFromTg(u.Message.From)
-
 		return ev
 	}
 
-	// 3) MyChatMember и пр. — если нужно, дополни
 	return ev
 }
 

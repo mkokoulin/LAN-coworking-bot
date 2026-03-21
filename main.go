@@ -159,27 +159,72 @@ func initServices(ctx context.Context, cfg *config.Config) (types.Services, erro
 	if err != nil {
 		return types.Services{}, err
 	}
-	coworkersSheets, err := services.NewCoworkersSheets(ctx, googleClient, cfg.CoworkersSpreadsheetId, cfg.CoworkersReadRange)
+
+	coworkersSheets, err := services.NewCoworkersSheets(
+		ctx,
+		googleClient,
+		cfg.CoworkersSpreadsheetId,
+		cfg.CoworkersReadRange,
+	)
+	if err != nil {
+		return types.Services{}, err
+	}
+
+	guestsSheets, err := services.NewGuestSheets(
+		ctx,
+		googleClient,
+		cfg.CoworkersSpreadsheetId,
+		cfg.GuestsReadRange,
+	)
+	if err != nil {
+		return types.Services{}, err
+	}
+
+	botLogs, err := services.NewBotLogsSheets(
+		ctx,
+		googleClient,
+		cfg.CoworkersSpreadsheetId,
+		cfg.BotLogsReadRange,
+	)
 	if err != nil {
 		return types.Services{}, err
 	}
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 
-	eventsService := services.NewEventsService(httpClient, "https://shark-app-wrcei.ondigitalocean.app/api/events")
-	subs := services.NewMemSubscriptions()
-
-	services.NewHaysellBarService(
+	eventsService := services.NewEventsService(
 		httpClient,
-		cfg.HaysellBaseURL,
-		cfg.HaysellAPIKey,
+		"https://shark-app-wrcei.ondigitalocean.app/api/events",
 	)
 
+	subs := services.NewMemSubscriptions()
+
+	// Либо сохранить, либо удалить
+	// barService := services.NewHaysellBarService(
+	// 	httpClient,
+	// 	cfg.HaysellBaseURL,
+	// 	cfg.HaysellAPIKey,
+	// )
+
+	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.MongoURI))
+	if err != nil {
+		return types.Services{}, err
+	}
+
+	db := mongoClient.Database("coworking_bot")
+
+	registrationsRepo, err := services.NewCoworkingRegistrationMongo(db)
+	if err != nil {
+		return types.Services{}, err
+	}
+
 	return types.Services{
-		CoworkersSheets: coworkersSheets,
-		Events:          eventsService,
-		Subscriptions:   subs,
-		// BarCatalog:      barCatalog,
+		CoworkersSheets:        coworkersSheets,
+		Guests:                 guestsSheets,
+		BotLogs:                botLogs,
+		Events:                 eventsService,
+		Subscriptions:          subs,
+		CoworkingRegistrations: registrationsRepo,
 	}, nil
 }
 
